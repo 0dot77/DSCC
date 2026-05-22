@@ -1,0 +1,23 @@
+{
+  "stationId": 1,
+  "cameraSerial": "BOLT_OR_MEGA_SERIAL",
+  "footMarkerCenter": {
+    "x": 0.0,
+    "y": 0.0,
+    "z": 2.1
+  },
+  "trackingRoi": {
+    "minX": -0.7,
+    "maxX": 0.7,
+    "minY": 0.0,
+    "maxY": 2.4,
+    "minZ": 1.5,
+    "maxZ": 2.8
+  },
+  "unityAnchor": {
+    "x": -3.0,
+    "y": 0.0,
+    "z": 0.0,
+    "rotationY": 0.0
+  }
+}

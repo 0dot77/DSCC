@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DSCC.Core\DSCC.Core.csproj" />
+    <ProjectReference Include="..\DSCC.Protocol\DSCC.Protocol.csproj" />
+    <ProjectReference Include="..\DSCC.Replay\DSCC.Replay.csproj" />
+    <ProjectReference Include="..\DSCC.Transport\DSCC.Transport.csproj" />
+    <ProjectReference Include="..\DSCC.Orbbec\DSCC.Orbbec.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.8" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+
+</Project>

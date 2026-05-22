@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DSCC.App.Wpf/DSCC.App.Wpf.csproj" />
+    <Project Path="src/DSCC.Core/DSCC.Core.csproj" />
+    <Project Path="src/DSCC.Orbbec/DSCC.Orbbec.csproj" />
+    <Project Path="src/DSCC.Protocol/DSCC.Protocol.csproj" />
+    <Project Path="src/DSCC.Replay/DSCC.Replay.csproj" />
+    <Project Path="src/DSCC.Transport/DSCC.Transport.csproj" />
+    <Project Path="src/OrbbecSDK.CSharp/OrbbecSDK.CSharp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DSCC.Core.Tests/DSCC.Core.Tests.csproj" />
+    <Project Path="tests/DSCC.Orbbec.Tests/DSCC.Orbbec.Tests.csproj" />
+    <Project Path="tests/DSCC.Protocol.Tests/DSCC.Protocol.Tests.csproj" />
+  </Folder>
+</Solution>

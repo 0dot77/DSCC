@@ -1,0 +1,1741 @@
+<Window x:Class="DSCC.App.Wpf.MainWindow"
+        x:Name="Root"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DSCC.App.Wpf.ViewModels"
+        mc:Ignorable="d"
+        Title="Dance Station Control Center"
+        Height="860"
+        Width="1480"
+        MinHeight="760"
+        MinWidth="1180"
+        Background="{DynamicResource AppShellBrush}"
+        FontFamily="Inter, Pretendard, Segoe UI, Malgun Gothic"
+        FontSize="12">
+    <Window.Resources>
+        <!-- Hallmark pre-emit critique: P5 H5 E4 S5 R5 V4
+             macrostructure: Workbench (3-pane operations console)
+             genre: modern-minimal; theme: custom dark instrument panel
+             source: spec/design/dscc_wpf_mockup.html -->
+        <SolidColorBrush x:Key="AppShellBrush" Color="#111318" />
+        <SolidColorBrush x:Key="Paper0Brush" Color="#181B20" />
+        <SolidColorBrush x:Key="Paper1Brush" Color="#20242A" />
+        <SolidColorBrush x:Key="Paper2Brush" Color="#292E35" />
+        <SolidColorBrush x:Key="Paper3Brush" Color="#343A43" />
+        <SolidColorBrush x:Key="Paper4Brush" Color="#424A55" />
+        <SolidColorBrush x:Key="Ink0Brush" Color="#F4F7FA" />
+        <SolidColorBrush x:Key="Ink1Brush" Color="#C4CCD6" />
+        <SolidColorBrush x:Key="Ink2Brush" Color="#8F9AAA" />
+        <SolidColorBrush x:Key="Ink3Brush" Color="#687486" />
+        <SolidColorBrush x:Key="Rule0Brush" Color="#39414B" />
+        <SolidColorBrush x:Key="Rule1Brush" Color="#4C5662" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#5EA7FF" />
+        <SolidColorBrush x:Key="AccentDimBrush" Color="#1D3C5F" />
+        <SolidColorBrush x:Key="AccentInkBrush" Color="#0E2034" />
+        <SolidColorBrush x:Key="OkBrush" Color="#65D88D" />
+        <SolidColorBrush x:Key="OkDimBrush" Color="#244C38" />
+        <SolidColorBrush x:Key="WarnBrush" Color="#EBC667" />
+        <SolidColorBrush x:Key="WarnDimBrush" Color="#51432A" />
+        <SolidColorBrush x:Key="ErrorBrush" Color="#F47A67" />
+        <SolidColorBrush x:Key="ErrorDimBrush" Color="#55302D" />
+        <SolidColorBrush x:Key="LostBrush" Color="#C487FF" />
+        <SolidColorBrush x:Key="LostDimBrush" Color="#49345C" />
+        <SolidColorBrush x:Key="MuteBrush" Color="#8994A3" />
+        <SolidColorBrush x:Key="MuteDimBrush" Color="#303741" />
+
+        <LinearGradientBrush x:Key="AccentFadeBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#203D5E" Offset="0" />
+            <GradientStop Color="#292E35" Offset="0.45" />
+            <GradientStop Color="#292E35" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="InspectorHeroBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#233326" Offset="0" />
+            <GradientStop Color="#20242A" Offset="1" />
+        </LinearGradientBrush>
+        <RadialGradientBrush x:Key="StageBrush" Center="0.5,0.35" GradientOrigin="0.5,0.35" RadiusX="0.82" RadiusY="0.72">
+            <GradientStop Color="#2B323B" Offset="0" />
+            <GradientStop Color="#181B20" Offset="1" />
+        </RadialGradientBrush>
+        <DrawingBrush x:Key="StageGridBrush" TileMode="Tile" Viewport="0,0,32,32" ViewportUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="Transparent">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,32,32" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing>
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="#26303A" Thickness="1" />
+                        </GeometryDrawing.Pen>
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <LineGeometry StartPoint="0,0" EndPoint="0,32" />
+                                <LineGeometry StartPoint="0,0" EndPoint="32,0" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+        <LinearGradientBrush x:Key="FovFillBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#005EA7FF" Offset="0" />
+            <GradientStop Color="#335EA7FF" Offset="1" />
+        </LinearGradientBrush>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Ink0Brush}" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        </Style>
+
+        <Style x:Key="MutedText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Ink2Brush}" />
+        </Style>
+
+        <Style x:Key="HintText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Ink3Brush}" />
+        </Style>
+
+        <Style x:Key="MonoText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="JetBrains Mono, Cascadia Mono, Consolas" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource Ink2Brush}" />
+        </Style>
+
+        <Style x:Key="DisplayText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Inter Tight, Pretendard, Segoe UI" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Ink0Brush}" />
+        </Style>
+
+        <Style x:Key="PaneBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Paper1Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="0,0,1,0" />
+        </Style>
+
+        <Style x:Key="SectionHeader" TargetType="Border">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Background" Value="{StaticResource Paper1Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+
+        <Style x:Key="DsccButton" TargetType="Button">
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Background" Value="{StaticResource Paper2Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink0Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style TargetType="Control">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate>
+                                    <Rectangle Stroke="{StaticResource AccentBrush}" StrokeThickness="2" RadiusX="5" RadiusY="5" Margin="-3" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonChrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource Paper3Brush}" />
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource Rule1Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource Paper4Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.45" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource DsccButton}">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AccentInkBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource DsccButton}">
+            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+        </Style>
+
+        <Style TargetType="Button" BasedOn="{StaticResource DsccButton}" />
+
+        <Style x:Key="TopNavButton" TargetType="Button">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0,0" />
+            <Setter Property="Margin" Value="0,0,24,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource Ink1Brush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Ink0Brush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SectionNavButton" TargetType="Button">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="0,0" />
+            <Setter Property="Margin" Value="0,0,26,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource Ink2Brush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="SectionNavChrome" BorderBrush="Transparent" BorderThickness="0,0,0,2">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink0Brush}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Tag}" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink0Brush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="SectionNavChrome" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="9,5" />
+            <Setter Property="Background" Value="{StaticResource Paper2Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink0Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="JetBrains Mono, Cascadia Mono, Consolas" />
+            <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource Ink1Brush}" />
+        </Style>
+
+        <Style x:Key="ConsoleTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource Ink2Brush}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,28,0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabChrome"
+                                Height="38"
+                                BorderBrush="Transparent"
+                                BorderThickness="0,0,0,2"
+                                Background="Transparent">
+                            <ContentPresenter ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabChrome" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink0Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink1Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource Ink3Brush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ConsoleTabControl" TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource Paper1Brush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ConsoleTabItem}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="38" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border Background="{StaticResource Paper1Brush}" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,0,0,1">
+                                <TabPanel IsItemsHost="True" Margin="20,0,0,0" />
+                            </Border>
+                            <ContentPresenter Grid.Row="1"
+                                              x:Name="PART_SelectedContentHost"
+                                              ContentSource="SelectedContent"
+                                              Margin="0" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="StationListBoxItem" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="StationCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Paper2Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Padding" Value="0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentFadeBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StationAccentStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource MuteBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="Active">
+                    <Setter Property="Background" Value="{StaticResource OkBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Entering">
+                    <Setter Property="Background" Value="{StaticResource WarnBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Lost">
+                    <Setter Property="Background" Value="{StaticResource LostBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Error">
+                    <Setter Property="Background" Value="{StaticResource ErrorBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StatePillStyle" TargetType="Border">
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="{StaticResource MuteDimBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="Active">
+                    <Setter Property="Background" Value="{StaticResource OkDimBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource OkBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Entering">
+                    <Setter Property="Background" Value="{StaticResource WarnDimBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource WarnBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Lost">
+                    <Setter Property="Background" Value="{StaticResource LostDimBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource LostBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Error">
+                    <Setter Property="Background" Value="{StaticResource ErrorDimBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StateTextStyle" TargetType="TextBlock" BasedOn="{StaticResource DisplayText}">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{StaticResource MuteBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="Active">
+                    <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Entering">
+                    <Setter Property="Foreground" Value="{StaticResource WarnBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Lost">
+                    <Setter Property="Foreground" Value="{StaticResource LostBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Error">
+                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ChipBorder" TargetType="Border">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="{StaticResource Paper2Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+
+        <Style x:Key="CommandTile" TargetType="Button" BasedOn="{StaticResource DsccButton}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+
+        <Style x:Key="MetricBar" TargetType="ProgressBar">
+            <Setter Property="Height" Value="4" />
+            <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+            <Setter Property="Background" Value="{StaticResource Paper3Brush}" />
+            <Setter Property="BorderBrush" Value="{x:Null}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid ClipToBounds="True">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="2" />
+                            <Border x:Name="PART_Track" />
+                            <Decorator x:Name="PART_Indicator" HorizontalAlignment="Left">
+                                <Border Background="{TemplateBinding Foreground}" CornerRadius="2" />
+                            </Decorator>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="CanUserDeleteRows" Value="False" />
+            <Setter Property="CanUserResizeRows" Value="False" />
+            <Setter Property="GridLinesVisibility" Value="None" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="Background" Value="{StaticResource Paper1Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink1Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="RowBackground" Value="{StaticResource Paper1Brush}" />
+            <Setter Property="AlternatingRowBackground" Value="{StaticResource Paper0Brush}" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="RowHeight" Value="30" />
+            <Setter Property="ColumnHeaderHeight" Value="34" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontFamily" Value="JetBrains Mono, Cascadia Mono, Consolas" />
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{StaticResource Paper0Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink2Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontFamily" Value="Inter, Pretendard, Segoe UI" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource Rule0Brush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Foreground" Value="{StaticResource Ink1Brush}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+
+        <Style x:Key="LogLevelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MonoText}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Level}" Value="info">
+                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="warn">
+                    <Setter Property="Foreground" Value="{StaticResource WarnBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="error">
+                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{StaticResource Paper1Brush}" ClipToBounds="True">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="36" />
+                <RowDefinition Height="30" />
+                <RowDefinition Height="38" />
+                <RowDefinition Height="48" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="30" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Background="{StaticResource Paper0Brush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0">
+                    <TextBlock Text="DSCC" Style="{StaticResource DisplayText}" FontSize="13" FontWeight="Bold" />
+                    <TextBlock Text="v0.1.0-mvp" Style="{StaticResource MonoText}" Margin="10,1,0,0" Foreground="{StaticResource Ink3Brush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse Width="6" Height="6" Fill="{StaticResource OkBrush}" Margin="0,0,8,0" />
+                    <TextBlock Text="runtime" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" />
+                    <TextBlock Text=" live" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                    <TextBlock Text="  wall " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                    <TextBlock Text="{Binding WallId}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                    <TextBlock Text="  config " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                    <TextBlock Text="{Binding ConfigPath}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextTrimming="CharacterEllipsis" MaxWidth="460" />
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" Background="{StaticResource Paper1Brush}" Margin="16,0">
+                <Menu Background="Transparent"
+                      BorderThickness="0"
+                      Foreground="{StaticResource Ink1Brush}"
+                      Margin="-6,0,18,0"
+                      VerticalAlignment="Center">
+                    <MenuItem Header="File" Foreground="{StaticResource Ink1Brush}">
+                        <MenuItem Header="Open config..." Command="{Binding OpenConfigCommand}" />
+                        <MenuItem Header="Reload config" Command="{Binding RefreshConfigCommand}" />
+                        <MenuItem Header="Save config" Command="{Binding SaveConfigCommand}" />
+                        <MenuItem Header="Save config as..." Command="{Binding SaveConfigAsCommand}" />
+                        <Separator />
+                        <MenuItem Header="Revert" Command="{Binding RevertConfigCommand}" />
+                        <MenuItem Header="Exit" Command="{Binding ExitCommand}" />
+                    </MenuItem>
+                </Menu>
+                <Button Content="Devices"
+                        Style="{StaticResource TopNavButton}"
+                        Tag="{Binding IsDevicesSelected}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="Devices" />
+                <Button Content="Calibration"
+                        Style="{StaticResource TopNavButton}"
+                        Tag="{Binding IsCalibrationSelected}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="Calibration" />
+                <Button Content="Unity"
+                        Style="{StaticResource TopNavButton}"
+                        Tag="{Binding IsUnityLinkSelected}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="UnityLink" />
+                <Button Content="Diagnostics"
+                        Style="{StaticResource TopNavButton}"
+                        Tag="{Binding IsDiagnosticsSelected}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="Diagnostics"
+                        Margin="0" />
+            </StackPanel>
+
+            <Grid Grid.Row="2" Background="{StaticResource Paper1Brush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                        Style="{StaticResource SectionNavButton}"
+                        Tag="{Binding IsWorkbenchSelected}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="Workbench"
+                        Margin="16,0,18,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Workbench" />
+                        <Border Style="{StaticResource ChipBorder}" Height="19" Padding="6,0" Margin="8,0,0,0">
+                            <TextBlock Text="{Binding Stations.Count}" Style="{StaticResource MonoText}" FontSize="10" Foreground="{StaticResource AccentBrush}" />
+                        </Border>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1"
+                        Content="Devices"
+                        Style="{StaticResource SectionNavButton}"
+                        Tag="{Binding IsDevicesSelected}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="Devices" />
+                <Button Grid.Column="2"
+                        Content="Calibration"
+                        Style="{StaticResource SectionNavButton}"
+                        Tag="{Binding IsCalibrationSelected}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="Calibration" />
+                <Button Grid.Column="3"
+                        Content="Unity Link"
+                        Style="{StaticResource SectionNavButton}"
+                        Tag="{Binding IsUnityLinkSelected}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="UnityLink"
+                        Margin="0" />
+            </Grid>
+
+            <Grid Grid.Row="3" Background="{StaticResource Paper1Brush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0">
+                    <Button Content="Reload config" Command="{Binding RefreshConfigCommand}" />
+                    <Button Content="Save config" Style="{StaticResource PrimaryButton}" Command="{Binding SaveConfigCommand}" />
+                    <Button Content="Revert" Command="{Binding RevertConfigCommand}" />
+                    <Button Content="Start replay" Style="{StaticResource PrimaryButton}" Command="{Binding StartReplayCommand}" />
+                    <Button Content="Stop" Command="{Binding StopReplayCommand}" />
+                    <Border Width="1" Height="18" Background="{StaticResource Rule0Brush}" Margin="4,0,12,0" />
+                    <Button Content="Refresh Orbbec devices" Command="{Binding RefreshDevicesCommand}" />
+                    <Button Content="Auto assign" Command="{Binding AutoAssignDevicesCommand}" />
+                    <Button Content="Start Orbbec live" Style="{StaticResource PrimaryButton}" Command="{Binding StartOrbbecLiveCommand}" />
+                    <Button Content="Stop Orbbec" Command="{Binding StopOrbbecLiveCommand}" />
+                    <ComboBox Width="104"
+                              ItemsSource="{Binding PreviewModes}"
+                              SelectedItem="{Binding PreviewMode}"
+                              Margin="0,0,8,0" />
+                    <Button Content="Send test frame" Command="{Binding SendTestFrameCommand}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Border Style="{StaticResource ChipBorder}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="6" Height="6" Fill="{StaticResource OkBrush}" Margin="0,0,7,0" />
+                            <TextBlock Text="fps " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                            <TextBlock Text="{Binding SendFps}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource ChipBorder}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="udp " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                            <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}">
+                                <Run Text="{Binding UnityHost, Mode=OneWay}" /><Run Text=":" /><Run Text="{Binding SkeletonPort, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource ChipBorder}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="6" Height="6" Fill="{StaticResource WarnBrush}" Margin="0,0,7,0" />
+                            <TextBlock Text="errors " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                            <TextBlock Text="{Binding PacketErrors}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource ChipBorder}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="input " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                            <TextBlock Text="{Binding LiveInputStatus}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource ChipBorder}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="dirty " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                            <TextBlock Text="{Binding HasUnsavedChanges}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="312" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="392" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource PaneBorder}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="38" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="220" />
+                        </Grid.RowDefinitions>
+                        <Border Style="{StaticResource SectionHeader}">
+                            <DockPanel VerticalAlignment="Center">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Stations.Count, StringFormat={}{0} stations}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                                <TextBlock Text="Stations" Style="{StaticResource DisplayText}" FontSize="13" />
+                            </DockPanel>
+                        </Border>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="12">
+                                <TextBlock Text="TRACKING WALL" Foreground="{StaticResource Ink3Brush}" FontSize="10.5" FontWeight="SemiBold" Margin="8,5,0,8" />
+                                <ListBox x:Name="StationList"
+                                         ItemsSource="{Binding Stations}"
+                                         SelectedIndex="0"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ItemContainerStyle="{StaticResource StationListBoxItem}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:StationRowViewModel}">
+                                            <Border Style="{StaticResource StationCardStyle}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="4" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Style="{StaticResource StationAccentStyle}" />
+                                                    <StackPanel Grid.Column="1" Margin="12,10,10,10">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding StationId, StringFormat=S{0}}" Style="{StaticResource DisplayText}" FontSize="13" Margin="0,0,8,0" />
+                                                            <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Ink1Brush}" TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                        <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis">
+                                                            <Run Text="{Binding DeviceType, Mode=OneWay}" /><Run Text="  " /><Run Text="{Binding AssignedCameraSerial, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                        <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" Margin="0,6,0,0">
+                                                            <Run Text="last " /><Run Text="{Binding LastFrameTime, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Margin="0,10,10,10" HorizontalAlignment="Right">
+                                                        <Border Style="{StaticResource StatePillStyle}">
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <TextBlock Text="*" Style="{StaticResource StateTextStyle}" Margin="0,0,5,0" />
+                                                                <TextBlock Text="{Binding State}" Style="{StaticResource StateTextStyle}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Confidence, StringFormat={}{0:0.00}}" HorizontalAlignment="Right" Margin="0,6,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MonoText}">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Ink3Brush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding State}" Value="Active">
+                                                                            <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Border Grid.Row="2" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,1,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="38" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Border Style="{StaticResource SectionHeader}" BorderThickness="0,0,0,1">
+                                    <DockPanel VerticalAlignment="Center">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Devices.Count, StringFormat={}{0} devices}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                                        <TextBlock Text="Devices" Style="{StaticResource DisplayText}" FontSize="13" />
+                                    </DockPanel>
+                                </Border>
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding Devices}" Margin="12,8">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:DeviceRowViewModel}">
+                                                <Grid Margin="0,0,0,7">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="20" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="CAM" Style="{StaticResource MonoText}" FontSize="9.5" Foreground="{StaticResource Ink3Brush}" VerticalAlignment="Center" />
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="{Binding DeviceType}" Foreground="{StaticResource Ink0Brush}" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Serial}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                                        <TextBlock Text="{Binding Status}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextAlignment="Right" />
+                                                        <TextBlock Text="{Binding Fps, StringFormat={}{0:0.0} fps}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" TextAlignment="Right" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="38" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="256" />
+                    </Grid.RowDefinitions>
+
+                    <TabControl Grid.Row="0" Grid.RowSpan="2">
+                        <TabControl.Style>
+                            <Style TargetType="TabControl" BasedOn="{StaticResource ConsoleTabControl}">
+                                <Setter Property="SelectedIndex" Value="0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDevicesSelected}" Value="True">
+                                        <Setter Property="SelectedIndex" Value="2" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsDiagnosticsSelected}" Value="True">
+                                        <Setter Property="SelectedIndex" Value="2" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsReplaySelected}" Value="True">
+                                        <Setter Property="SelectedIndex" Value="3" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsUnityLinkSelected}" Value="True">
+                                        <Setter Property="SelectedIndex" Value="3" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TabControl.Style>
+                        <TabItem Header="Live stage">
+                            <Grid Background="{StaticResource StageBrush}" ClipToBounds="True">
+                                <Rectangle Fill="{StaticResource StageGridBrush}" Opacity="0.62" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="20">
+                                    <ItemsControl ItemsSource="{Binding Stations}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:StationRowViewModel}">
+                                                <Border Width="540" Height="340" Margin="0,0,16,16" Background="#B8181B20" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1" CornerRadius="6">
+                                                    <Grid Margin="12">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+
+                                                        <DockPanel Grid.Row="0">
+                                                            <Border DockPanel.Dock="Right" Style="{StaticResource StatePillStyle}">
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <TextBlock Text="*" Style="{StaticResource StateTextStyle}" Margin="0,0,5,0" />
+                                                                    <TextBlock Text="{Binding State}" Style="{StaticResource StateTextStyle}" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding StationId, StringFormat=Station {0}}" Style="{StaticResource DisplayText}" FontSize="14" />
+                                                                <TextBlock Text="{Binding AssignedCameraSerial}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                        </DockPanel>
+
+                                                        <Grid Grid.Row="1" Margin="0,10,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Height="24" Padding="8,0" CornerRadius="4" Background="{StaticResource Paper2Brush}" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1">
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <Ellipse Width="7" Height="7" Margin="0,0,7,0">
+                                                                        <Ellipse.Style>
+                                                                            <Style TargetType="Ellipse">
+                                                                                <Setter Property="Fill" Value="{StaticResource ErrorBrush}" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HasPlayer}" Value="True">
+                                                                                        <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Ellipse.Style>
+                                                                    </Ellipse>
+                                                                    <TextBlock Text="{Binding SkeletonQuality}" Style="{StaticResource MonoText}" FontSize="10.5" Foreground="{StaticResource Ink1Brush}" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding CameraFps, StringFormat={}{0:0.0} fps}"
+                                                                       Style="{StaticResource MonoText}"
+                                                                       Foreground="{StaticResource AccentBrush}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="10,0,0,0" />
+                                                        </Grid>
+
+                                                        <Grid Grid.Row="2" Margin="0,10,0,10">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="1*" />
+                                                                <ColumnDefinition Width="1.08*" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <Border Grid.Column="0" Background="#D80A0C10" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+                                                                <Grid>
+                                                                    <Image Source="{Binding LiveDepthPreview}"
+                                                                           Stretch="Uniform"
+                                                                           RenderOptions.BitmapScalingMode="LowQuality" />
+                                                                    <Viewbox Stretch="Uniform"
+                                                                             IsHitTestVisible="False">
+                                                                        <Grid Width="{Binding LivePreviewCanvasWidth}"
+                                                                              Height="{Binding LivePreviewCanvasHeight}">
+                                                                            <ItemsControl ItemsSource="{Binding LivePreviewBoneSegments}">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <Canvas IsItemsHost="True" />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <Line X1="{Binding X1}"
+                                                                                              Y1="{Binding Y1}"
+                                                                                              X2="{Binding X2}"
+                                                                                              Y2="{Binding Y2}"
+                                                                                              Stroke="{StaticResource OkBrush}"
+                                                                                              StrokeThickness="1.8"
+                                                                                              Opacity="{Binding Opacity}"
+                                                                                              StrokeStartLineCap="Round"
+                                                                                              StrokeEndLineCap="Round" />
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                            <ItemsControl ItemsSource="{Binding LivePreviewJointPoints}">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <Canvas IsItemsHost="True" />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemContainerStyle>
+                                                                                    <Style TargetType="ContentPresenter">
+                                                                                        <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
+                                                                                        <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
+                                                                                    </Style>
+                                                                                </ItemsControl.ItemContainerStyle>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <Ellipse Width="{Binding Size}"
+                                                                                                 Height="{Binding Size}"
+                                                                                                 Stroke="{StaticResource Paper0Brush}"
+                                                                                                 StrokeThickness="1"
+                                                                                                 Opacity="{Binding Opacity}">
+                                                                                            <Ellipse.Style>
+                                                                                                <Style TargetType="Ellipse">
+                                                                                                    <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+                                                                                                    <Style.Triggers>
+                                                                                                        <DataTrigger Binding="{Binding Kind}" Value="pelvis">
+                                                                                                            <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+                                                                                                        </DataTrigger>
+                                                                                                        <DataTrigger Binding="{Binding Kind}" Value="foot">
+                                                                                                            <Setter Property="Fill" Value="{StaticResource WarnBrush}" />
+                                                                                                        </DataTrigger>
+                                                                                                    </Style.Triggers>
+                                                                                                </Style>
+                                                                                            </Ellipse.Style>
+                                                                                        </Ellipse>
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                        </Grid>
+                                                                    </Viewbox>
+                                                                    <Border HorizontalAlignment="Left"
+                                                                            VerticalAlignment="Top"
+                                                                            Margin="8"
+                                                                            Padding="6,2"
+                                                                            Background="#B0111318"
+                                                                            CornerRadius="3">
+                                                                        <TextBlock Text="{Binding LivePreviewStatus}"
+                                                                                   Style="{StaticResource MonoText}"
+                                                                                   FontSize="9"
+                                                                                   Foreground="{StaticResource Ink1Brush}"
+                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                    </Border>
+                                                                </Grid>
+                                                            </Border>
+
+                                                            <Border Grid.Column="1" Margin="10,0,0,0" Background="#60181B20" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+                                                                <Grid>
+                                                                    <TextBlock Text="STAGE MAP" Style="{StaticResource MonoText}" FontSize="9" Foreground="{StaticResource Ink3Brush}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,6,0,0" />
+                                                                    <TextBlock Text="{Binding PlayerStatusText}" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,8,0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource MonoText}">
+                                                                                <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HasPlayer}" Value="True">
+                                                                                        <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <Viewbox Margin="10,18,10,8" Stretch="Uniform">
+                                                                        <Canvas Width="180"
+                                                                                Height="210"
+                                                                                Background="Transparent"
+                                                                                MouseMove="StageEditorCanvas_MouseMove"
+                                                                                MouseLeftButtonUp="StageEditorCanvas_MouseLeftButtonUp"
+                                                                                LostMouseCapture="StageEditorCanvas_LostMouseCapture">
+                                                                            <Polygon Points="90,12 18,190 162,190" Fill="{StaticResource FovFillBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" Opacity="0.72" />
+                                                                            <Rectangle Canvas.Left="66" Canvas.Top="4" Width="48" Height="20" RadiusX="3" RadiusY="3" Fill="{StaticResource Paper2Brush}" Stroke="{StaticResource AccentBrush}" />
+                                                                            <TextBlock Canvas.Left="75" Canvas.Top="7" Text="{Binding StationId, StringFormat=CAM {0}}" Style="{StaticResource MonoText}" FontSize="9" Foreground="{StaticResource AccentBrush}" />
+                                                                            <Border Canvas.Left="{Binding RoiCanvasLeft}"
+                                                                                    Canvas.Top="{Binding RoiCanvasTop}"
+                                                                                    Width="{Binding RoiCanvasWidth}"
+                                                                                    Height="{Binding RoiCanvasHeight}"
+                                                                                    Style="{StaticResource StationCardStyle}"
+                                                                                    Background="{StaticResource MuteDimBrush}"
+                                                                                    Cursor="SizeAll"
+                                                                                    MouseLeftButtonDown="EditorRoi_MouseLeftButtonDown">
+                                                                                <TextBlock Text="ROI" Style="{StaticResource MonoText}" FontSize="9" Foreground="{StaticResource Ink2Brush}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5,3,0,0" />
+                                                                            </Border>
+                                                                            <Ellipse Canvas.Left="{Binding FootMarkerRingCanvasLeft}" Canvas.Top="{Binding FootMarkerRingCanvasTop}" Width="32" Height="32" Stroke="{StaticResource WarnBrush}" StrokeDashArray="3,3" />
+                                                                            <Ellipse Canvas.Left="{Binding FootMarkerCanvasLeft}"
+                                                                                     Canvas.Top="{Binding FootMarkerCanvasTop}"
+                                                                                     Width="10"
+                                                                                     Height="10"
+                                                                                     Fill="{StaticResource WarnBrush}"
+                                                                                     Cursor="Hand"
+                                                                                     MouseLeftButtonDown="EditorFootMarker_MouseLeftButtonDown" />
+                                                                            <ItemsControl ItemsSource="{Binding LiveBoneSegments}"
+                                                                                          IsHitTestVisible="False">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <Canvas Width="180" Height="210" IsItemsHost="True" />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <Line X1="{Binding X1}"
+                                                                                              Y1="{Binding Y1}"
+                                                                                              X2="{Binding X2}"
+                                                                                              Y2="{Binding Y2}"
+                                                                                              Stroke="{StaticResource Ink0Brush}"
+                                                                                              StrokeThickness="1.6"
+                                                                                              Opacity="{Binding Opacity}"
+                                                                                              StrokeStartLineCap="Round"
+                                                                                              StrokeEndLineCap="Round" />
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                            <ItemsControl ItemsSource="{Binding LiveJointPoints}"
+                                                                                          IsHitTestVisible="False">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <Canvas Width="180" Height="210" IsItemsHost="True" />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemContainerStyle>
+                                                                                    <Style TargetType="ContentPresenter">
+                                                                                        <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
+                                                                                        <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
+                                                                                    </Style>
+                                                                                </ItemsControl.ItemContainerStyle>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <Ellipse Width="{Binding Size}"
+                                                                                                 Height="{Binding Size}"
+                                                                                                 Stroke="{StaticResource Paper0Brush}"
+                                                                                                 StrokeThickness="1"
+                                                                                                 Opacity="{Binding Opacity}">
+                                                                                            <Ellipse.Style>
+                                                                                                <Style TargetType="Ellipse">
+                                                                                                    <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+                                                                                                    <Style.Triggers>
+                                                                                                        <DataTrigger Binding="{Binding Kind}" Value="pelvis">
+                                                                                                            <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+                                                                                                        </DataTrigger>
+                                                                                                        <DataTrigger Binding="{Binding Kind}" Value="foot">
+                                                                                                            <Setter Property="Fill" Value="{StaticResource WarnBrush}" />
+                                                                                                        </DataTrigger>
+                                                                                                    </Style.Triggers>
+                                                                                                </Style>
+                                                                                            </Ellipse.Style>
+                                                                                        </Ellipse>
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                            <Ellipse Canvas.Left="{Binding PelvisCanvasLeft}" Canvas.Top="{Binding PelvisCanvasTop}" Width="10" Height="10" Fill="{StaticResource Ink0Brush}" Stroke="{StaticResource OkBrush}" StrokeThickness="2" />
+                                                                            <Border Canvas.Left="50" Canvas.Top="116" Width="80" Height="24" Background="#C0111318" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1" CornerRadius="4">
+                                                                                <TextBlock Text="NO PLAYER" Foreground="{StaticResource Ink2Brush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                                    <TextBlock.Style>
+                                                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource MonoText}">
+                                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding HasPlayer}" Value="False">
+                                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </TextBlock.Style>
+                                                                                </TextBlock>
+                                                                            </Border>
+                                                                            <Line X1="22" Y1="194" X2="158" Y2="194" Stroke="{StaticResource Rule1Brush}" StrokeDashArray="2,4" />
+                                                                        </Canvas>
+                                                                    </Viewbox>
+                                                                </Grid>
+                                                            </Border>
+                                                        </Grid>
+
+                                                        <Grid Grid.Row="3">
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="Auto" />
+                                                            </Grid.RowDefinitions>
+                                                            <UniformGrid Columns="3">
+                                                                <Border Background="{StaticResource Paper2Brush}" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,6,0">
+                                                                    <StackPanel>
+                                                                        <TextBlock Text="CONF" Style="{StaticResource MonoText}" FontSize="9" Foreground="{StaticResource Ink3Brush}" />
+                                                                        <TextBlock Text="{Binding Confidence, StringFormat={}{0:0.00}}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                                <Border Background="{StaticResource Paper2Brush}" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,6,0">
+                                                                    <StackPanel>
+                                                                        <TextBlock Text="JOINTS" Style="{StaticResource MonoText}" FontSize="9" Foreground="{StaticResource Ink3Brush}" />
+                                                                        <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}">
+                                                                            <Run Text="{Binding TrackedJointCount, Mode=OneWay}" /><Run Text="/" /><Run Text="{Binding JointCount, Mode=OneWay}" />
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                                <Border Background="{StaticResource Paper2Brush}" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                                                    <StackPanel>
+                                                                        <TextBlock Text="DEPTH" Style="{StaticResource MonoText}" FontSize="9" Foreground="{StaticResource Ink3Brush}" />
+                                                                        <TextBlock Text="{Binding CameraFrameResolution}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}" TextTrimming="CharacterEllipsis" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </UniformGrid>
+                                                            <Grid Grid.Row="1" Margin="0,8,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="8" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Height="26" CornerRadius="4" Padding="8,0">
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                            <Setter Property="Background" Value="{StaticResource ErrorDimBrush}" />
+                                                                            <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
+                                                                            <Setter Property="BorderThickness" Value="1" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding InsideRoi}" Value="True">
+                                                                                    <Setter Property="Background" Value="{StaticResource OkDimBrush}" />
+                                                                                    <Setter Property="BorderBrush" Value="{StaticResource OkBrush}" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
+                                                                    <TextBlock Text="{Binding RoiStatusText}" Style="{StaticResource MonoText}" FontSize="10.5" Foreground="{StaticResource Ink0Brush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                </Border>
+                                                                <Border Grid.Column="2" Height="26" CornerRadius="4" Padding="8,0">
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                            <Setter Property="Background" Value="{StaticResource ErrorDimBrush}" />
+                                                                            <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
+                                                                            <Setter Property="BorderThickness" Value="1" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding InsideFootMarker}" Value="True">
+                                                                                    <Setter Property="Background" Value="{StaticResource OkDimBrush}" />
+                                                                                    <Setter Property="BorderBrush" Value="{StaticResource OkBrush}" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
+                                                                    <TextBlock Text="{Binding MarkerStatusText}" Style="{StaticResource MonoText}" FontSize="10.5" Foreground="{StaticResource Ink0Brush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                </Border>
+                                                            </Grid>
+                                                        </Grid>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Skeleton frames">
+                            <DataGrid ItemsSource="{Binding Stations}" Margin="0" IsReadOnly="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Station" Binding="{Binding StationId}" Width="80" />
+                                    <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="1.4*" />
+                                    <DataGridTextColumn Header="State" Binding="{Binding State}" Width="120" />
+                                    <DataGridTextColumn Header="HasPlayer" Binding="{Binding HasPlayer}" Width="100" />
+                                    <DataGridTextColumn Header="Quality" Binding="{Binding SkeletonQuality}" Width="120" />
+                                    <DataGridTextColumn Header="Confidence" Binding="{Binding Confidence, StringFormat=0.00}" Width="110" />
+                                    <DataGridTextColumn Header="Joints" Binding="{Binding TrackedJointCount}" Width="80" />
+                                    <DataGridTextColumn Header="Joint avg" Binding="{Binding AverageJointConfidence, StringFormat=0.00}" Width="90" />
+                                    <DataGridTextColumn Header="Inside ROI" Binding="{Binding InsideRoi}" Width="100" />
+                                    <DataGridTextColumn Header="Foot marker" Binding="{Binding InsideFootMarker}" Width="110" />
+                                    <DataGridTextColumn Header="Lost sec" Binding="{Binding LostSeconds, StringFormat=0.00}" Width="90" />
+                                    <DataGridTextColumn Header="Last frame" Binding="{Binding LastFrameTime}" Width="140" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <TabItem Header="Device diagnostics">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Background="{StaticResource Paper1Brush}" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,0,0,1" Padding="16,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Refresh Orbbec devices" Command="{Binding RefreshDevicesCommand}" />
+                                        <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" VerticalAlignment="Center" Margin="8,0,0,0">
+                                            <Run Text="devices " /><Run Text="{Binding Devices.Count, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                                <DataGrid ItemsSource="{Binding Devices}" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Type" Binding="{Binding DeviceType}" Width="*" />
+                                        <DataGridTextColumn Header="Serial" Binding="{Binding Serial}" Width="1.7*" />
+                                        <DataGridTextColumn Header="Station" Binding="{Binding AssignedStation}" Width="90" />
+                                        <DataGridTextColumn Header="Connection" Binding="{Binding Connection}" Width="110" />
+                                        <DataGridTextColumn Header="Target" Binding="{Binding ConfiguredFps}" Width="70" />
+                                        <DataGridTextColumn Header="Measured" Binding="{Binding Fps, StringFormat=0.0}" Width="90" />
+                                        <DataGridTextColumn Header="Depth" Binding="{Binding DepthMode}" Width="1.3*" />
+                                        <DataGridTextColumn Header="Sync" Binding="{Binding SyncRole}" Width="100" />
+                                        <DataGridTextColumn Header="Frames" Binding="{Binding FramesReceived}" Width="80" />
+                                        <DataGridTextColumn Header="Depth" Binding="{Binding DepthResolution}" Width="100" />
+                                        <DataGridTextColumn Header="Color" Binding="{Binding ColorResolution}" Width="100" />
+                                        <DataGridTextColumn Header="Last frame" Binding="{Binding LastFrameTime}" Width="110" />
+                                        <DataGridTextColumn Header="Dropped" Binding="{Binding DroppedFrames}" Width="90" />
+                                        <DataGridTextColumn Header="Skeleton" Binding="{Binding SkeletonStatus}" Width="170" />
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="2*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+
+                        <TabItem Header="Replay">
+                            <Grid Background="{StaticResource Paper1Brush}" Margin="20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="260" />
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Replay control" Style="{StaticResource DisplayText}" FontSize="16" />
+                                    <TextBlock Text="Mock replay drives station state and UDP skeleton output." Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,8,0,16" />
+                                    <Button Content="Start replay" Style="{StaticResource PrimaryButton}" Command="{Binding StartReplayCommand}" Margin="0,0,0,8" />
+                                    <Button Content="Stop replay" Command="{Binding StopReplayCommand}" Margin="0,0,0,8" />
+                                    <Button Content="Send test frame" Command="{Binding SendTestFrameCommand}" Margin="0,0,0,16" />
+                                    <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}">
+                                        <Run Text="target " Foreground="{StaticResource Ink3Brush}" /><Run Text="{Binding UnityHost, Mode=OneWay}" /><Run Text=":" /><Run Text="{Binding SkeletonPort, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}">
+                                        <Run Text="last " Foreground="{StaticResource Ink3Brush}" /><Run Text="{Binding LastSentTimestamp, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Unity events" Style="{StaticResource DisplayText}" FontSize="16" />
+                                    <UniformGrid Columns="3" Rows="2" Margin="0,12,0,0">
+                                        <Button Content="game/start" Style="{StaticResource CommandTile}" Foreground="{StaticResource OkBrush}" Command="{Binding SendEventCommand}" CommandParameter="game/start" Margin="0,0,8,8" />
+                                        <Button Content="game/reset" Style="{StaticResource CommandTile}" Foreground="{StaticResource WarnBrush}" Command="{Binding SendEventCommand}" CommandParameter="game/reset" Margin="0,0,8,8" />
+                                        <Button Content="player/enter" Style="{StaticResource CommandTile}" Command="{Binding SendEventCommand}" CommandParameter="player/enter" Margin="0,0,0,8" />
+                                        <Button Content="player/exit" Style="{StaticResource CommandTile}" Command="{Binding SendEventCommand}" CommandParameter="player/exit" Margin="0,0,8,0" />
+                                        <Button Content="calibration/reload" Style="{StaticResource CommandTile}" Command="{Binding SendEventCommand}" CommandParameter="calibration/reload" Margin="0,0,8,0" />
+                                        <Button Content="force selected exit" Style="{StaticResource CommandTile}" Foreground="{StaticResource ErrorBrush}" Command="{Binding ForceExitCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" />
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+
+                    <Grid Grid.Row="2" Background="{StaticResource Paper1Brush}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="36" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,1,0,1">
+                            <DockPanel Margin="20,0" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border BorderBrush="{StaticResource AccentBrush}" BorderThickness="0,0,0,2" Height="36" Margin="0,0,22,0">
+                                        <TextBlock Text="Event log" VerticalAlignment="Center" Foreground="{StaticResource Ink0Brush}" />
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Border Style="{StaticResource ChipBorder}" Height="24" Padding="8,0">
+                                        <TextBlock Style="{StaticResource MonoText}" FontSize="10.5">
+                                            <Run Text="filter " Foreground="{StaticResource Ink3Brush}" /><Run Text="level >= INFO" Foreground="{StaticResource Ink1Brush}" />
+                                        </TextBlock>
+                                    </Border>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Logs}" HeadersVisibility="None" IsReadOnly="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Binding="{Binding Time}" Width="112" ElementStyle="{StaticResource MonoText}" />
+                                <DataGridTextColumn Binding="{Binding Level}" Width="64" ElementStyle="{StaticResource LogLevelTextStyle}" />
+                                <DataGridTextColumn Binding="{Binding Message}" Width="*" ElementStyle="{StaticResource MonoText}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Grid>
+
+                <Border Grid.Column="2" Background="{StaticResource Paper1Brush}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Background="{StaticResource InspectorHeroBrush}" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,0,0,1" Padding="20">
+                                <StackPanel>
+                                    <TextBlock Text="INSPECTOR · SELECTED STATION" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" FontSize="10.5" />
+                                    <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.DisplayName, TargetNullValue=No station}" Style="{StaticResource DisplayText}" FontSize="22" Margin="0,8,0,0" />
+                                    <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.DeviceType}" Foreground="{StaticResource Ink3Brush}" FontSize="16" FontWeight="Medium" Margin="0,2,0,0" />
+                                    <DockPanel Margin="0,14,0,0">
+                                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}">
+                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.Confidence, StringFormat={}{0:0.00}, Mode=OneWay}" /><Run Text=" conf" Foreground="{StaticResource Ink3Brush}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.State}" Style="{StaticResource DisplayText}" Foreground="{StaticResource OkBrush}" FontSize="13" />
+                                    </DockPanel>
+                                    <ProgressBar Style="{StaticResource MetricBar}" Value="{Binding ElementName=StationList, Path=SelectedItem.Confidence, Mode=OneWay}" Maximum="1" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,0,0,1">
+                                <StackPanel>
+                                    <Border Style="{StaticResource SectionHeader}">
+                                        <DockPanel VerticalAlignment="Center">
+                                            <TextBlock DockPanel.Dock="Right" Text="▾" Foreground="{StaticResource Ink3Brush}" />
+                                            <TextBlock Text="기본 정보" Style="{StaticResource DisplayText}" FontSize="13" />
+                                        </DockPanel>
+                                    </Border>
+                                    <Grid Margin="20,14,20,18">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="116" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="24" />
+                                            <RowDefinition Height="24" />
+                                            <RowDefinition Height="24" />
+                                            <RowDefinition Height="24" />
+                                            <RowDefinition Height="24" />
+                                            <RowDefinition Height="24" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="Station ID" Style="{StaticResource HintText}" />
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                                        <TextBlock Grid.Row="1" Text="Camera Serial" Style="{StaticResource HintText}" />
+                                        <ComboBox Grid.Row="1"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding DataContext.AvailableDeviceSerials, ElementName=Root}"
+                                                  Text="{Binding ElementName=StationList, Path=SelectedItem.AssignedCameraSerial, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEditable="True"
+                                                  IsTextSearchEnabled="True" />
+                                        <TextBlock Grid.Row="2" Text="HasPlayer" Style="{StaticResource HintText}" />
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.HasPlayer}" Foreground="{StaticResource OkBrush}" />
+                                        <TextBlock Grid.Row="3" Text="ROI 내부" Style="{StaticResource HintText}" />
+                                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.InsideRoi}" Foreground="{StaticResource OkBrush}" />
+                                        <TextBlock Grid.Row="4" Text="발 마커 내부" Style="{StaticResource HintText}" />
+                                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.InsideFootMarker}" Foreground="{StaticResource OkBrush}" />
+                                        <TextBlock Grid.Row="5" Text="Last frame" Style="{StaticResource HintText}" />
+                                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.LastFrameTime}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,0,0,1">
+                                <StackPanel>
+                                    <Border Style="{StaticResource SectionHeader}">
+                                        <DockPanel VerticalAlignment="Center">
+                                            <TextBlock DockPanel.Dock="Right" Text="▾" Foreground="{StaticResource Ink3Brush}" />
+                                            <TextBlock Text="실시간 지표" Style="{StaticResource DisplayText}" FontSize="13" />
+                                        </DockPanel>
+                                    </Border>
+                                    <StackPanel Margin="20,14,20,18">
+                                        <Border Height="172"
+                                                Background="{StaticResource Paper0Brush}"
+                                                BorderBrush="{StaticResource Rule0Brush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                ClipToBounds="True"
+                                                Margin="0,0,0,14">
+                                            <Grid>
+                                                <Image Source="{Binding ElementName=StationList, Path=SelectedItem.LiveDepthPreview}"
+                                                       Stretch="Uniform"
+                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                <Viewbox Stretch="Uniform"
+                                                         IsHitTestVisible="False">
+                                                    <Grid Width="{Binding ElementName=StationList, Path=SelectedItem.LivePreviewCanvasWidth}"
+                                                          Height="{Binding ElementName=StationList, Path=SelectedItem.LivePreviewCanvasHeight}">
+                                                        <ItemsControl ItemsSource="{Binding ElementName=StationList, Path=SelectedItem.LivePreviewBoneSegments}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <Canvas IsItemsHost="True" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Line X1="{Binding X1}"
+                                                                          Y1="{Binding Y1}"
+                                                                          X2="{Binding X2}"
+                                                                          Y2="{Binding Y2}"
+                                                                          Stroke="{StaticResource OkBrush}"
+                                                                          StrokeThickness="1.8"
+                                                                          Opacity="{Binding Opacity}"
+                                                                          StrokeStartLineCap="Round"
+                                                                          StrokeEndLineCap="Round" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <ItemsControl ItemsSource="{Binding ElementName=StationList, Path=SelectedItem.LivePreviewJointPoints}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <Canvas IsItemsHost="True" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemContainerStyle>
+                                                                <Style TargetType="ContentPresenter">
+                                                                    <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
+                                                                    <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
+                                                                </Style>
+                                                            </ItemsControl.ItemContainerStyle>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Ellipse Width="{Binding Size}"
+                                                                             Height="{Binding Size}"
+                                                                             Stroke="{StaticResource Paper0Brush}"
+                                                                             StrokeThickness="1"
+                                                                             Opacity="{Binding Opacity}">
+                                                                        <Ellipse.Style>
+                                                                            <Style TargetType="Ellipse">
+                                                                                <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Kind}" Value="pelvis">
+                                                                                        <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding Kind}" Value="foot">
+                                                                                        <Setter Property="Fill" Value="{StaticResource WarnBrush}" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Ellipse.Style>
+                                                                    </Ellipse>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Grid>
+                                                </Viewbox>
+                                                <Border VerticalAlignment="Bottom"
+                                                        Background="#AA111318"
+                                                        Padding="8,5">
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right"
+                                                                   Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFps, StringFormat={}{0:0.0} fps}"
+                                                                   Style="{StaticResource MonoText}"
+                                                                   Foreground="{StaticResource Ink0Brush}" />
+                                                        <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.LivePreviewStatus}"
+                                                                   Style="{StaticResource MonoText}"
+                                                                   Foreground="{StaticResource Ink2Brush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Skeleton confidence" Style="{StaticResource HintText}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.Confidence, StringFormat={}{0:P0}}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                                        </Grid>
+                                        <ProgressBar Style="{StaticResource MetricBar}" Value="{Binding ElementName=StationList, Path=SelectedItem.Confidence, Mode=OneWay}" Maximum="1" />
+                                        <Grid Margin="0,14,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Lost seconds" Style="{StaticResource HintText}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.LostSeconds, StringFormat={}{0:0.00}s}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
+                                        </Grid>
+                                        <ProgressBar Style="{StaticResource MetricBar}" Value="{Binding ElementName=StationList, Path=SelectedItem.LostSeconds, Mode=OneWay}" Maximum="3" Foreground="{StaticResource WarnBrush}" />
+                                        <Grid Margin="0,14,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Joint coverage" Style="{StaticResource HintText}" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}">
+                                                <Run Text="{Binding ElementName=StationList, Path=SelectedItem.TrackedJointCount, Mode=OneWay}" />
+                                                <Run Text="/" />
+                                                <Run Text="{Binding ElementName=StationList, Path=SelectedItem.JointCount, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </Grid>
+                                        <ProgressBar Style="{StaticResource MetricBar}" Value="{Binding ElementName=StationList, Path=SelectedItem.JointCoverage, Mode=OneWay}" Maximum="1" Foreground="{StaticResource AccentBrush}" />
+                                        <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.SkeletonDiagnosticSummary}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,12,0,0" />
+                                        <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,8,0,0">
+                                            <Run Text="camera " Foreground="{StaticResource Ink3Brush}" />
+                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFrameStatus, Mode=OneWay}" />
+                                            <Run Text=" " />
+                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFrameResolution, Mode=OneWay}" />
+                                            <Run Text=" @ " />
+                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFps, StringFormat={}{0:0}fps, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.SkeletonSourceStatus, Mode=OneWay}" Style="{StaticResource MonoText}" Foreground="{StaticResource WarnBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,0,0,1">
+                                <StackPanel>
+                                    <Border Style="{StaticResource SectionHeader}">
+                                        <DockPanel VerticalAlignment="Center">
+                                            <TextBlock DockPanel.Dock="Right" Text="▾" Foreground="{StaticResource Ink3Brush}" />
+                                            <TextBlock Text="캘리브레이션" Style="{StaticResource DisplayText}" FontSize="13" />
+                                        </DockPanel>
+                                    </Border>
+                                    <StackPanel Margin="20,14,20,18">
+                                        <TextBlock Text="발 마커 중심 (m)" Style="{StaticResource HintText}" Margin="0,0,0,8" />
+                                        <UniformGrid Columns="3" Margin="0,0,0,12">
+                                            <StackPanel Margin="0,0,6,0">
+                                                <TextBlock Text="X" Style="{StaticResource MonoText}" Foreground="{StaticResource ErrorBrush}" />
+                                                <TextBox Text="{Binding ElementName=StationList, Path=SelectedItem.FootMarkerX, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,0">
+                                                <TextBlock Text="Y" Style="{StaticResource MonoText}" Foreground="{StaticResource OkBrush}" />
+                                                <TextBox Text="{Binding ElementName=StationList, Path=SelectedItem.FootMarkerY, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="Z" Style="{StaticResource MonoText}" Foreground="{StaticResource AccentBrush}" />
+                                                <TextBox Text="{Binding ElementName=StationList, Path=SelectedItem.FootMarkerZ, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" Margin="0,0,0,12">
+                                            <Run Text="live pelvis " Foreground="{StaticResource Ink3Brush}" />
+                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.PelvisX, StringFormat={}{0:0.000}, Mode=OneWay}" />
+                                            <Run Text=", " />
+                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.PelvisY, StringFormat={}{0:0.000}, Mode=OneWay}" />
+                                            <Run Text=", " />
+                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.PelvisZ, StringFormat={}{0:0.000}, Mode=OneWay}" />
+                                        </TextBlock>
+
+                                        <TextBlock Text="추적 ROI (m)" Style="{StaticResource HintText}" Margin="0,0,0,8" />
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="52" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Text="X" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.RoiMinX, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                            <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding ElementName=StationList, Path=SelectedItem.RoiMaxX, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                            <TextBlock Grid.Row="1" Text="Y" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.RoiMinY, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                            <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding ElementName=StationList, Path=SelectedItem.RoiMaxY, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                            <TextBlock Grid.Row="2" Text="Z" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.RoiMinZ, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding ElementName=StationList, Path=SelectedItem.RoiMaxZ, UpdateSourceTrigger=LostFocus}" />
+                                        </Grid>
+
+                                        <TextBlock Text="Unity anchor" Style="{StaticResource HintText}" Margin="0,0,0,8" />
+                                        <UniformGrid Columns="4" Margin="0,0,0,14">
+                                            <TextBox Text="{Binding ElementName=StationList, Path=SelectedItem.UnityAnchorX, UpdateSourceTrigger=LostFocus}" Margin="0,0,6,0" />
+                                            <TextBox Text="{Binding ElementName=StationList, Path=SelectedItem.UnityAnchorY, UpdateSourceTrigger=LostFocus}" Margin="0,0,6,0" />
+                                            <TextBox Text="{Binding ElementName=StationList, Path=SelectedItem.UnityAnchorZ, UpdateSourceTrigger=LostFocus}" Margin="0,0,6,0" />
+                                            <TextBox Text="{Binding ElementName=StationList, Path=SelectedItem.UnityRotationY, UpdateSourceTrigger=LostFocus}" />
+                                        </UniformGrid>
+
+                                        <UniformGrid Columns="2" Rows="2">
+                                            <Button Content="발 마커 캡처" Style="{StaticResource CommandTile}" Command="{Binding CaptureFootMarkerCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Margin="0,0,8,8" />
+                                            <Button Content="ROI 자동 생성" Style="{StaticResource CommandTile}" Command="{Binding GenerateRoiCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Margin="0,0,0,8" />
+                                            <Button Content="선택 Station 적용" Style="{StaticResource CommandTile}" Foreground="{StaticResource OkBrush}" Command="{Binding ApplyStationEditorCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Margin="0,0,8,0" />
+                                            <Button Content="전체 설정 저장" Style="{StaticResource CommandTile}" Foreground="{StaticResource OkBrush}" Command="{Binding SaveConfigCommand}" />
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,0,0,1">
+                                <StackPanel>
+                                    <Border Style="{StaticResource SectionHeader}">
+                                        <DockPanel VerticalAlignment="Center">
+                                            <TextBlock DockPanel.Dock="Right" Text="▾" Foreground="{StaticResource Ink3Brush}" />
+                                            <TextBlock Text="임계값" Style="{StaticResource DisplayText}" FontSize="13" />
+                                        </DockPanel>
+                                    </Border>
+                                    <StackPanel Margin="20,14,20,18">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="1.2*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Text="진입 안정 (s)" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.EnterStableSeconds, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                            <TextBlock Grid.Row="1" Text="Lost 유예 (s)" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.LostGraceSeconds, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                            <TextBlock Grid.Row="2" Text="이탈 확정 (s)" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.ExitConfirmSeconds, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                            <TextBlock Grid.Row="3" Text="최소 confidence" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.MinSkeletonConfidence, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,8" />
+                                            <TextBlock Grid.Row="4" Text="발 마커 반경 (m)" Style="{StaticResource HintText}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding ElementName=StationList, Path=SelectedItem.FootMarkerRadiusMeters, UpdateSourceTrigger=LostFocus}" />
+                                        </Grid>
+                                        <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.ConditionSummary}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,12,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border BorderBrush="{StaticResource Rule0Brush}" BorderThickness="0,0,0,1">
+                                <StackPanel>
+                                    <Border Style="{StaticResource SectionHeader}">
+                                        <DockPanel VerticalAlignment="Center">
+                                            <TextBlock DockPanel.Dock="Right" Text="▾" Foreground="{StaticResource Ink3Brush}" />
+                                            <TextBlock Text="Unity Link" Style="{StaticResource DisplayText}" FontSize="13" />
+                                        </DockPanel>
+                                    </Border>
+                                    <StackPanel Margin="20,14,20,18">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="92" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Target IP" Style="{StaticResource HintText}" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding UnityHost, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Skeleton" Style="{StaticResource HintText}" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding SkeletonPort, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Event port" Style="{StaticResource HintText}" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding EventPort, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Status port" Style="{StaticResource HintText}" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding StatusPort, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <CheckBox Content="Mirror skeleton X for front-facing camera"
+                                                  IsChecked="{Binding MirrorSkeletonForUnity}"
+                                                  Margin="0,12,0,0" />
+                                        <CheckBox Content="Stabilize head and neck rotation"
+                                                  IsChecked="{Binding StabilizeHeadRotation}"
+                                                  Margin="0,8,0,0" />
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="10" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Head smooth (s)" Style="{StaticResource HintText}" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding HeadRotationSmoothingHalfLifeSeconds, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Max deg/sec" Style="{StaticResource HintText}" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding HeadRotationMaxDegreesPerSecond, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="2">
+                                                <TextBlock Text="Min conf" Style="{StaticResource HintText}" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding HeadRotationMinConfidence, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="2" Grid.Column="2">
+                                                <TextBlock Text="Deadzone deg" Style="{StaticResource HintText}" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding HeadRotationDeadZoneDegrees, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Margin="0,12,0,10" Style="{StaticResource MonoText}">
+                                            <Run Text="last frame " Foreground="{StaticResource Ink3Brush}" /><Run Text="{Binding LastSentTimestamp, Mode=OneWay}" Foreground="{StaticResource Ink0Brush}" />
+                                        </TextBlock>
+                                        <UniformGrid Columns="2" Rows="3">
+                                            <Button Content="game/start" Style="{StaticResource CommandTile}" Foreground="{StaticResource OkBrush}" Command="{Binding SendEventCommand}" CommandParameter="game/start" Margin="0,0,8,8" />
+                                            <Button Content="game/reset" Style="{StaticResource CommandTile}" Foreground="{StaticResource WarnBrush}" Command="{Binding SendEventCommand}" CommandParameter="game/reset" Margin="0,0,0,8" />
+                                            <Button Content="player/enter" Style="{StaticResource CommandTile}" Command="{Binding SendEventCommand}" CommandParameter="player/enter" Margin="0,0,8,8" />
+                                            <Button Content="player/exit" Style="{StaticResource CommandTile}" Command="{Binding SendEventCommand}" CommandParameter="player/exit" Margin="0,0,0,8" />
+                                            <Button Content="calibration/reload" Style="{StaticResource CommandTile}" Command="{Binding SendEventCommand}" CommandParameter="calibration/reload" Margin="0,0,8,0" />
+                                            <Button Content="강제 이탈" Style="{StaticResource CommandTile}" Foreground="{StaticResource ErrorBrush}" Command="{Binding ForceExitCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" />
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Row="5" Background="{StaticResource Paper0Brush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0">
+                    <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}">
+                        <Run Text="app " Foreground="{StaticResource Ink3Brush}" /><Run Text="정상" />
+                    </TextBlock>
+                    <TextBlock Text="   " />
+                    <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}">
+                        <Run Text="skeleton " Foreground="{StaticResource Ink3Brush}" /><Run Text="UDP :" /><Run Text="{Binding SkeletonPort, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding SendFps, Mode=OneWay}" /><Run Text=" fps" />
+                    </TextBlock>
+                    <TextBlock Text="   " />
+                    <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}">
+                        <Run Text="event " Foreground="{StaticResource Ink3Brush}" /><Run Text="UDP :" /><Run Text="{Binding EventPort, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock Text="   " />
+                    <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}">
+                        <Run Text="sent " Foreground="{StaticResource Ink3Brush}" /><Run Text="{Binding PacketsSent, Mode=OneWay}" /><Run Text=" / errors " Foreground="{StaticResource Ink3Brush}" /><Run Text="{Binding PacketErrors, Mode=OneWay}" />
+                    </TextBlock>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <Run Text="unity " /><Run Text="{Binding UnityStatus, Mode=OneWay}" /><Run Text=" · last frame " /><Run Text="{Binding LastSentTimestamp, Mode=OneWay}" /><Run Text=" · .NET 10 · WPF" />
+                </TextBlock>
+            </Grid>
+    </Grid>
+</Window>

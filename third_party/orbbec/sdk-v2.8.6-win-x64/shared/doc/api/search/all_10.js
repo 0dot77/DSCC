@@ -1,0 +1,27 @@
+var searchData=
+[
+  ['r_0',['r',['../struct_o_b_color_point.html#afe48bc5c44ced94fc3e9bde3653ba5fb',1,'OBColorPoint']]],
+  ['radius_1',['radius',['../struct_o_b_spatial_fast_filter_params.html#a7be21489cdb6639760feefc179aa1031',1,'OBSpatialFastFilterParams::radius'],['../struct_o_b_spatial_moderate_filter_params.html#a355b158738739523ebf43f4c9a34cc57',1,'OBSpatialModerateFilterParams::radius'],['../struct_o_b_spatial_advanced_filter_params.html#ad5ba7e142440fe36767062b1813ff3a2',1,'OBSpatialAdvancedFilterParams::radius']]],
+  ['randomwalk_2',['randomWalk',['../struct_o_b_accel_intrinsic.html#a913d5d1229786cd69f358b504ccd0246',1,'OBAccelIntrinsic::randomWalk'],['../struct_o_b_gyro_intrinsic.html#a2043610fbcc23df252d8c34fdbc294dc',1,'OBGyroIntrinsic::randomWalk']]],
+  ['rangetraits_3',['RangeTraits',['../structob_1_1_range_traits.html',1,'ob']]],
+  ['rangetraits_3c_20obfloatpropertyrange_20_3e_4',['RangeTraits&lt; OBFloatPropertyRange &gt;',['../structob_1_1_range_traits_3_01_o_b_float_property_range_01_4.html',1,'ob']]],
+  ['rangetraits_3c_20obintpropertyrange_20_3e_5',['RangeTraits&lt; OBIntPropertyRange &gt;',['../structob_1_1_range_traits_3_01_o_b_int_property_range_01_4.html',1,'ob']]],
+  ['rangetraits_3c_20obuint16propertyrange_20_3e_6',['RangeTraits&lt; OBUint16PropertyRange &gt;',['../structob_1_1_range_traits_3_01_o_b_uint16_property_range_01_4.html',1,'ob']]],
+  ['rangetraits_3c_20obuint8propertyrange_20_3e_7',['RangeTraits&lt; OBUint8PropertyRange &gt;',['../structob_1_1_range_traits_3_01_o_b_uint8_property_range_01_4.html',1,'ob']]],
+  ['readcustomerdata_8',['readCustomerData',['../classob_1_1_device.html#a33ea10323fe7e482fa58fa8925aa6eeb',1,'ob::Device']]],
+  ['reboot_9',['reboot',['../classob_1_1_device.html#ab1159168feecb526dcdf87b3976130be',1,'ob::Device::reboot() const'],['../classob_1_1_device.html#a7f8078edc2e3544cd8699e94339265d7',1,'ob::Device::reboot(uint32_t delayMs) const']]],
+  ['recorddevice_10',['RecordDevice',['../classob_1_1_record_device.html',1,'ob::RecordDevice'],['../classob_1_1_record_device.html#a0a2fbc96445b1b749d0086c802c96a8c',1,'ob::RecordDevice::RecordDevice(std::shared_ptr&lt; Device &gt; device, const std::string &amp;file, bool compressionEnabled=true)'],['../classob_1_1_record_device.html#a9a4368c6daf23054ba04e5d5dfaaa3a6',1,'ob::RecordDevice::RecordDevice(RecordDevice &amp;&amp;other) noexcept'],['../classob_1_1_record_device.html#a14c1956680ce700e01400a400e4a8ed4',1,'ob::RecordDevice::RecordDevice(const RecordDevice &amp;)=delete']]],
+  ['recordplayback_2eh_11',['RecordPlayback.h',['../_record_playback_8h.html',1,'']]],
+  ['recordplayback_2ehpp_12',['RecordPlayback.hpp',['../_record_playback_8hpp.html',1,'']]],
+  ['referencetemp_13',['referenceTemp',['../struct_o_b_accel_intrinsic.html#ab2685e781b607c920c96a4dc38cada3f',1,'OBAccelIntrinsic::referenceTemp'],['../struct_o_b_gyro_intrinsic.html#ae5313bbaa4af7e397d15f877e28a720b',1,'OBGyroIntrinsic::referenceTemp']]],
+  ['reflectivity_14',['reflectivity',['../struct_o_b_li_d_a_r_point.html#a8204e1edc1d10694b3510890082a91f5',1,'OBLiDARPoint::reflectivity'],['../struct_o_b_li_d_a_r_sphere_point.html#af170e534b7fbaa67a32d58ba54949686',1,'OBLiDARSpherePoint::reflectivity']]],
+  ['registerdevicechangedcallback_15',['registerDeviceChangedCallback',['../classob_1_1_context.html#acc54909f965ed8f6b08c48fd6ade436a',1,'ob::Context']]],
+  ['reserved_16',['reserved',['../struct_o_b_pipeline_status.html#a1f90fc6a1e0ef088dc8c545d8d9ff5dc',1,'OBPipelineStatus::reserved'],['../struct_o_b_disp_offset_config.html#a97275ac5d5139f7f1b63a6f54b973778',1,'OBDispOffsetConfig::reserved']]],
+  ['reset_17',['reset',['../classob_1_1_filter.html#ab1e19a53ca875de32693531e2c6cdfea',1,'ob::Filter']]],
+  ['resume_18',['resume',['../classob_1_1_record_device.html#afa9d8b6c5298289f0c4d6ad953bbc89c',1,'ob::RecordDevice::resume()'],['../classob_1_1_playback_device.html#a71860329f982968bd6618976b1794f2f',1,'ob::PlaybackDevice::resume()']]],
+  ['rgbdistortion_19',['rgbDistortion',['../struct_o_b_camera_param.html#a0629e0ee848fc0b6a1ded5ac64166235',1,'OBCameraParam']]],
+  ['rgbintrinsic_20',['rgbIntrinsic',['../struct_o_b_camera_param.html#acc6d8df18c5216e8e1bd6188ed68d47e',1,'OBCameraParam']]],
+  ['rgbtemp_21',['rgbTemp',['../struct_o_b_device_temperature.html#af3e639159fffb2171c01381db38527e8',1,'OBDeviceTemperature']]],
+  ['rgbtriggersignalindelay_22',['rgbTriggerSignalInDelay',['../struct_o_b_device_sync_config.html#a004e403a03bc62458a6f7809d5463e51',1,'OBDeviceSyncConfig']]],
+  ['rot_23',['rot',['../struct_o_b_d2_c_transform.html#a9b8da8c82da9e03b92299e6816a963d1',1,'OBD2CTransform']]]
+];

@@ -1,0 +1,6 @@
+build/
+doc/
+.vscode/
+.vs/
+out/
+scripts/

@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>DSCC — Dance Station Control Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+<style>
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4
+ * macrostructure: Workbench (3-pane operations console)
+ * genre: modern-minimal · theme: custom (dark instrument panel)
+ * paper: oklch(17% 0.005 240) · accent: oklch(72% 0.16 230)
+ * fonts: Inter Tight (display) · Inter (body) · JetBrains Mono (data) · Pretendard (Korean)
+ * states: default · hover · focus-visible · active · disabled
+ * scope: desktop-only WPF mockup (1480px fixed) · no responsive
+ */
+
+  :root {
+    /* Paper (background surfaces, deepest → highest) */
+    --paper-0: oklch(13% 0.006 240);
+    --paper-1: oklch(17% 0.006 240);
+    --paper-2: oklch(21% 0.008 240);
+    --paper-3: oklch(26% 0.010 240);
+    --paper-4: oklch(31% 0.012 240);
+
+    /* Ink (text, primary → hint) */
+    --ink-0: oklch(97% 0.004 240);
+    --ink-1: oklch(80% 0.006 240);
+    --ink-2: oklch(60% 0.008 240);
+    --ink-3: oklch(45% 0.010 240);
+
+    /* Hairlines */
+    --rule-0: oklch(26% 0.010 240);
+    --rule-1: oklch(34% 0.012 240);
+
+    /* Single accent */
+    --accent:     oklch(72% 0.16  230);
+    --accent-ink: oklch(18% 0.04  230);
+    --accent-bg:  oklch(38% 0.10  230 / 0.18);
+
+    /* Semantic states — used only for state, never decoration */
+    --st-ok:    oklch(76% 0.17 150);
+    --st-warn:  oklch(82% 0.16  85);
+    --st-err:   oklch(70% 0.20  22);
+    --st-lost:  oklch(72% 0.18 305);
+    --st-mute:  oklch(58% 0.008 240);
+
+    --st-ok-bg:   oklch(30% 0.08 150 / 0.22);
+    --st-warn-bg: oklch(35% 0.09  85 / 0.22);
+    --st-err-bg:  oklch(32% 0.10  22 / 0.22);
+    --st-lost-bg: oklch(32% 0.10 305 / 0.22);
+    --st-mute-bg: oklch(26% 0.008 240);
+
+    /* Type */
+    --font-display: 'Inter Tight', 'Pretendard Variable', 'Pretendard', system-ui, sans-serif;
+    --font-body:    'Inter', 'Pretendard Variable', 'Pretendard', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', 'Consolas', 'Cascadia Mono', monospace;
+
+    /* Type scale */
+    --text-xs:  11px;
+    --text-sm:  12px;
+    --text-md:  13px;
+    --text-lg:  16px;
+    --text-xl:  22px;
+    --text-2xl: 32px;
+
+    /* Spacing (4pt) */
+    --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+    --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+
+    /* Radius */
+    --r-1: 3px;
+    --r-2: 5px;
+    --r-3: 8px;
+
+    /* Motion */
+    --ease-out: cubic-bezier(0.2, 0, 0, 1);
+    --dur-fast: 120ms;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0;
+    background: oklch(9% 0.008 240);
+    color: var(--ink-0);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .app {
+    width: 1480px;
+    margin: 28px auto;
+    background: var(--paper-1);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-3);
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  /* ===== App strip (replaces fake-OS chrome) ===== */
+  .app-strip {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--s-4);
+    height: 36px;
+    padding: 0 var(--s-4);
+    background: var(--paper-0);
+    border-bottom: 1px solid var(--rule-0);
+  }
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    color: var(--ink-0);
+  }
+  .wordmark .v {
+    color: var(--ink-3);
+    font-weight: 500;
+    margin-left: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .app-meta {
+    display: flex; gap: var(--s-4); align-items: center;
+    justify-self: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-2);
+  }
+  .app-meta .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--st-ok);
+    box-shadow: 0 0 0 3px oklch(76% 0.17 150 / 0.18);
+  }
+  .app-meta b { color: var(--ink-0); font-weight: 500; }
+  .win-ctrl { display:flex; gap: var(--s-1); }
+  .win-ctrl span {
+    width: 22px; height: 22px; display: grid; place-items: center;
+    color: var(--ink-2); font-size: 11px;
+    border-radius: var(--r-1);
+  }
+  .win-ctrl span:hover { background: var(--paper-3); color: var(--ink-0); }
+
+  /* ===== Menu ===== */
+  .menu {
+    display: flex; align-items: center;
+    gap: var(--s-6);
+    padding: 0 var(--s-4);
+    height: 30px;
+    background: var(--paper-1);
+    border-bottom: 1px solid var(--rule-0);
+    color: var(--ink-1);
+    font-size: var(--text-sm);
+  }
+  .menu .m { cursor: default; padding: 0 var(--s-1); }
+  .menu .m:hover { color: var(--ink-0); }
+
+  /* ===== Tabs ===== */
+  .tabs {
+    display: flex;
+    background: var(--paper-1);
+    border-bottom: 1px solid var(--rule-0);
+    padding: 0 var(--s-4);
+    height: 38px;
+    gap: var(--s-5);
+  }
+  .tab {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    height: 100%;
+    color: var(--ink-2);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    cursor: default;
+  }
+  .tab:hover { color: var(--ink-1); }
+  .tab.active {
+    color: var(--ink-0);
+    border-bottom-color: var(--accent);
+  }
+  .tab .count {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    background: var(--paper-2);
+    padding: 1px 6px;
+    border-radius: var(--r-1);
+  }
+  .tab.active .count {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+
+  /* ===== Toolbar ===== */
+  .toolbar {
+    display: flex; align-items: center; gap: var(--s-2);
+    padding: var(--s-2) var(--s-4);
+    height: 48px;
+    background: var(--paper-1);
+    border-bottom: 1px solid var(--rule-0);
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    height: 30px; padding: 0 var(--s-3);
+    background: var(--paper-2);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-2);
+    color: var(--ink-0);
+    font: 500 var(--text-sm)/1 var(--font-body);
+    white-space: nowrap;
+    cursor: default;
+  }
+  .btn:hover { background: var(--paper-3); border-color: var(--rule-1); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn.primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: transparent;
+  }
+  .btn.primary:hover { background: oklch(76% 0.16 230); }
+  .btn.ok      { color: var(--st-ok); }
+  .btn.warn    { color: var(--st-warn); }
+  .btn.danger  { color: var(--st-err); }
+  .btn .kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    padding: 1px 5px;
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-1);
+    background: var(--paper-1);
+  }
+  .toolbar .sep {
+    width: 1px; height: 18px; background: var(--rule-0);
+    margin: 0 var(--s-1);
+  }
+  .toolbar .spacer { flex: 1; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    height: 28px; padding: 0 var(--s-3);
+    background: var(--paper-2);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-2);
+    font-size: var(--text-xs);
+    color: var(--ink-1);
+    white-space: nowrap;
+  }
+  .chip .led {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--st-ok);
+  }
+  .chip .led.warn { background: var(--st-warn); }
+  .chip .led.err  { background: var(--st-err); }
+  .chip .label { color: var(--ink-2); }
+  .chip .value {
+    color: var(--ink-0);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  /* ===== Body grid ===== */
+  .body {
+    display: grid;
+    grid-template-columns: 312px 1fr 392px;
+    min-height: 836px;
+  }
+  .pane {
+    border-right: 1px solid var(--rule-0);
+    display: flex; flex-direction: column;
+    min-width: 0;
+    background: var(--paper-1);
+  }
+  .pane:last-child { border-right: none; }
+
+  .pane-head {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 38px; padding: 0 var(--s-4);
+    border-bottom: 1px solid var(--rule-0);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-md);
+    color: var(--ink-0);
+    letter-spacing: -0.005em;
+  }
+  .pane-head .sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ink-3);
+  }
+
+  /* ===== Left: Station cards ===== */
+  .stack { padding: var(--s-3) var(--s-3) var(--s-4); display: grid; gap: var(--s-2); }
+  .group-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+    padding: var(--s-2) var(--s-2) var(--s-1);
+  }
+
+  .station {
+    position: relative;
+    display: grid;
+    grid-template-columns: 4px 1fr auto;
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-3) var(--s-3) 0;
+    background: var(--paper-2);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-2);
+    overflow: hidden;
+    cursor: default;
+  }
+  .station:hover { border-color: var(--rule-1); }
+  .station.selected {
+    border-color: var(--accent);
+    background: linear-gradient(90deg, var(--accent-bg) 0%, var(--paper-2) 30%);
+  }
+  .station .bar {
+    background: var(--st-mute);
+    height: 100%;
+  }
+  .station.s-active   .bar { background: var(--st-ok); }
+  .station.s-entering .bar { background: var(--st-warn); }
+  .station.s-lost     .bar { background: var(--st-lost); }
+  .station.s-empty    .bar { background: var(--st-mute); }
+  .station.s-error    .bar { background: var(--st-err); }
+
+  .station .info { min-width: 0; }
+  .station .heading {
+    display: flex; align-items: baseline; gap: var(--s-2);
+    margin-bottom: 2px;
+  }
+  .station .num {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-md);
+    color: var(--ink-0);
+  }
+  .station .nm {
+    font-size: var(--text-sm);
+    color: var(--ink-1);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .station .meta {
+    display: flex; align-items: center; gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .station .meta .dev { color: var(--ink-2); }
+  .station .stat {
+    display: flex; flex-direction: column; align-items: flex-end;
+    gap: 4px;
+  }
+  .state-pill {
+    display: inline-flex; align-items: center; gap: var(--s-1);
+    height: 20px; padding: 0 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 500;
+    font-family: var(--font-display);
+    background: var(--st-mute-bg);
+    color: var(--st-mute);
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .state-pill .pulse {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor;
+  }
+  .s-active   .state-pill { background: var(--st-ok-bg);   color: var(--st-ok); }
+  .s-entering .state-pill { background: var(--st-warn-bg); color: var(--st-warn); }
+  .s-lost     .state-pill { background: var(--st-lost-bg); color: var(--st-lost); }
+  .s-empty    .state-pill { background: var(--st-mute-bg); color: var(--st-mute); }
+  .s-error    .state-pill { background: var(--st-err-bg);  color: var(--st-err); }
+
+  .station .live {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .station.s-active .live  { color: var(--st-ok); }
+  .station.s-lost .live    { color: var(--st-lost); }
+
+  /* Device row (lighter than station card) */
+  .device {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    gap: var(--s-2);
+    align-items: center;
+    padding: 6px var(--s-3);
+    color: var(--ink-1);
+    border-radius: var(--r-1);
+  }
+  .device:hover { background: var(--paper-2); }
+  .device .ic {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    text-align: center;
+  }
+  .device .label { font-size: var(--text-sm); color: var(--ink-0); }
+  .device .sub {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .device .body-col { min-width: 0; }
+
+  /* ===== Center pane ===== */
+  .center {
+    display: grid;
+    grid-template-rows: 38px 1fr 256px;
+    min-width: 0;
+  }
+  .ctabs {
+    display: flex; align-items: center;
+    gap: var(--s-6);
+    padding: 0 var(--s-5);
+    border-bottom: 1px solid var(--rule-0);
+    background: var(--paper-1);
+  }
+  .ctabs .ct {
+    height: 100%;
+    display: inline-flex; align-items: center;
+    font-size: var(--text-sm);
+    color: var(--ink-2);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    cursor: default;
+  }
+  .ctabs .ct.active { color: var(--ink-0); border-bottom-color: var(--accent); }
+
+  .viz {
+    position: relative;
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 30%, var(--paper-2) 0%, var(--paper-0) 80%);
+    overflow: hidden;
+  }
+  .viz .grid-overlay {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(to right,  oklch(100% 0 0 / 0.025) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(100% 0 0 / 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+  }
+  .viz svg { width: 100%; height: 100%; display: block; position: relative; }
+
+  .viz .hud {
+    position: absolute; top: var(--s-4); left: var(--s-4);
+    display: flex; gap: 2px;
+    background: oklch(13% 0.006 240 / 0.85);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-2);
+    padding: 4px;
+    backdrop-filter: blur(8px);
+  }
+  .viz .hud .tool {
+    width: 26px; height: 26px;
+    display: grid; place-items: center;
+    color: var(--ink-2);
+    border-radius: var(--r-1);
+    font-size: 13px;
+    cursor: default;
+  }
+  .viz .hud .tool:hover { background: var(--paper-3); color: var(--ink-0); }
+  .viz .hud .tool.active { background: var(--accent-bg); color: var(--accent); }
+
+  .viz .legend {
+    position: absolute; top: var(--s-4); right: var(--s-4);
+    background: oklch(13% 0.006 240 / 0.85);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-2);
+    padding: var(--s-3) var(--s-3);
+    font-size: 11px;
+    color: var(--ink-2);
+    backdrop-filter: blur(8px);
+    min-width: 192px;
+  }
+  .legend .ttl {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--ink-0);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: var(--s-2);
+  }
+  .legend .row {
+    display: grid; grid-template-columns: 14px 1fr;
+    align-items: center; gap: var(--s-2);
+    padding: 3px 0;
+  }
+  .legend .sw {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+  }
+  .legend .sw.dot { border-radius: 50%; }
+
+  .viz .telemetry {
+    position: absolute; bottom: var(--s-4); left: var(--s-4); right: var(--s-4);
+    display: flex; align-items: center; justify-content: space-between;
+    pointer-events: none;
+  }
+  .telemetry .read {
+    background: oklch(13% 0.006 240 / 0.85);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-2);
+    padding: 6px var(--s-3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-1);
+    backdrop-filter: blur(8px);
+  }
+  .telemetry .read .k { color: var(--ink-3); margin-right: var(--s-1); }
+  .telemetry .read .v { color: var(--ink-0); }
+
+  /* ===== Logs ===== */
+  .logs {
+    display: grid;
+    grid-template-rows: 36px 1fr;
+    background: var(--paper-1);
+    border-top: 1px solid var(--rule-0);
+    min-height: 0;
+  }
+  .logs-head {
+    display: flex; align-items: center;
+    gap: var(--s-5);
+    padding: 0 var(--s-5);
+    border-bottom: 1px solid var(--rule-0);
+  }
+  .logs-head .lt {
+    height: 100%;
+    display: inline-flex; align-items: center;
+    font-size: var(--text-sm);
+    color: var(--ink-2);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    cursor: default;
+  }
+  .logs-head .lt.active { color: var(--ink-0); border-bottom-color: var(--accent); }
+  .logs-head .spacer { flex: 1; }
+  .logs-head .filter {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    padding: 4px 8px;
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-1);
+    background: var(--paper-2);
+  }
+  .logs-head .filter b { color: var(--ink-1); font-weight: 500; }
+
+  .log-list {
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    padding: var(--s-2) 0;
+  }
+  .log-row {
+    display: grid;
+    grid-template-columns: 104px 48px 100px 1fr;
+    gap: var(--s-4);
+    padding: 3px var(--s-5);
+    color: var(--ink-1);
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  .log-row .t   { color: var(--ink-3); }
+  .log-row .lv  { font-weight: 500; }
+  .log-row .src { color: var(--accent); }
+  .log-row .msg {
+    color: var(--ink-0);
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .lv.INFO { color: oklch(78% 0.10 230); }
+  .lv.OK   { color: var(--st-ok); }
+  .lv.WARN { color: var(--st-warn); }
+  .lv.ERR  { color: var(--st-err); }
+
+  /* ===== Right Inspector ===== */
+  .inspector {
+    display: flex; flex-direction: column;
+    overflow: auto;
+  }
+  .insp-hero {
+    padding: var(--s-5);
+    border-bottom: 1px solid var(--rule-0);
+    background:
+      linear-gradient(180deg, oklch(76% 0.17 150 / 0.05) 0%, transparent 100%),
+      var(--paper-1);
+  }
+  .insp-hero .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+  .insp-hero .name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-xl);
+    color: var(--ink-0);
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+  }
+  .insp-hero .state-line {
+    display: flex; align-items: center; gap: var(--s-3);
+    margin-top: var(--s-3);
+  }
+  .insp-hero .state-text {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-md);
+    color: var(--st-ok);
+  }
+  .insp-hero .conf {
+    display: flex; align-items: baseline; gap: 4px;
+    margin-left: auto;
+    font-family: var(--font-mono);
+  }
+  .insp-hero .conf .v {
+    font-size: var(--text-lg);
+    color: var(--ink-0);
+    font-weight: 500;
+  }
+  .insp-hero .conf .k {
+    font-size: 10.5px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .insp-hero .conf-bar {
+    margin-top: var(--s-2);
+    height: 3px;
+    background: var(--paper-3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .insp-hero .conf-bar > i {
+    display: block; height: 100%;
+    background: var(--st-ok);
+  }
+
+  .insp-section { border-bottom: 1px solid var(--rule-0); }
+  .insp-title {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 36px;
+    padding: 0 var(--s-5);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    color: var(--ink-0);
+    background: var(--paper-1);
+  }
+  .insp-title .ctl {
+    color: var(--ink-3);
+    font-size: 10px;
+  }
+  .insp-body { padding: var(--s-3) var(--s-5) var(--s-5); }
+
+  .kv {
+    display: grid;
+    grid-template-columns: 116px 1fr;
+    column-gap: var(--s-3);
+    row-gap: var(--s-2);
+    font-size: var(--text-sm);
+    align-items: baseline;
+  }
+  .kv .k { color: var(--ink-3); }
+  .kv .v { color: var(--ink-0); }
+  .kv .v.mono { font-family: var(--font-mono); font-size: 11.5px; }
+
+  .row-input {
+    display: grid;
+    grid-template-columns: 1fr 116px;
+    gap: var(--s-3);
+    align-items: center;
+    margin: var(--s-2) 0;
+    font-size: var(--text-sm);
+  }
+  .row-input.full { grid-template-columns: 1fr; }
+  .row-input .lab { color: var(--ink-2); }
+  .num-field {
+    height: 28px;
+    background: var(--paper-2);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-1);
+    padding: 0 10px;
+    color: var(--ink-0);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    display: flex; align-items: center; justify-content: flex-end;
+  }
+  .num-field.edit {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 2px oklch(72% 0.16 230 / 0.12);
+  }
+
+  .triplet { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+  .axis {
+    display: grid; grid-template-columns: 18px 1fr;
+    align-items: center;
+    height: 28px;
+    background: var(--paper-2);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-1);
+    overflow: hidden;
+  }
+  .axis .a {
+    height: 100%;
+    display: grid; place-items: center;
+    color: var(--ink-0);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 10.5px;
+  }
+  .axis.x .a { background: oklch(60% 0.16 22); }
+  .axis.y .a { background: oklch(70% 0.16 150); }
+  .axis.z .a { background: oklch(70% 0.16 230); }
+  .axis .v {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-0);
+    padding-right: 8px;
+  }
+
+  .metric-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--s-3);
+    align-items: center;
+    padding: 6px 0;
+    font-size: var(--text-sm);
+  }
+  .metric-row .lab { color: var(--ink-2); }
+  .metric-row .val {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-0);
+  }
+  .metric-row .bar {
+    grid-column: 1 / -1;
+    height: 3px;
+    background: var(--paper-3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .metric-row .bar > i {
+    display: block; height: 100%;
+    background: var(--st-ok);
+  }
+  .metric-row .bar.warn > i { background: var(--st-warn); }
+
+  hr.rule {
+    border: 0;
+    border-top: 1px solid var(--rule-0);
+    margin: var(--s-4) 0;
+  }
+
+  .cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+  .cmd {
+    display: flex; align-items: center; gap: var(--s-2);
+    height: 32px;
+    padding: 0 var(--s-3);
+    background: var(--paper-2);
+    border: 1px solid var(--rule-0);
+    border-radius: var(--r-1);
+    font: 500 var(--text-sm)/1 var(--font-body);
+    color: var(--ink-0);
+    cursor: default;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cmd:hover { background: var(--paper-3); border-color: var(--rule-1); }
+  .cmd .glyph {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex: 0 0 4px;
+  }
+  .cmd.ok .glyph { background: var(--st-ok); }
+  .cmd.warn .glyph { background: var(--st-warn); }
+  .cmd.danger .glyph { background: var(--st-err); }
+  .cmd .proto {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-1);
+  }
+
+  /* ===== Status strip ===== */
+  .strip {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    height: 28px;
+    padding: 0 var(--s-4);
+    border-top: 1px solid var(--rule-0);
+    background: var(--paper-0);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-2);
+  }
+  .strip .row { display: flex; gap: var(--s-5); align-items: center; }
+  .strip .seg { display: inline-flex; align-items: center; gap: var(--s-2); }
+  .strip .seg .led {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--st-ok);
+  }
+  .strip .seg .led.info { background: var(--accent); }
+  .strip .seg .led.warn { background: var(--st-warn); }
+  .strip .seg .led.lost { background: var(--st-lost); }
+  .strip .seg .k { color: var(--ink-3); }
+  .strip .seg .v { color: var(--ink-0); }
+  .strip .right { color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===== App strip ===== -->
+  <header class="app-strip">
+    <div class="wordmark">DSCC<span class="v">v0.1.0-mvp</span></div>
+    <div class="app-meta">
+      <span class="dot"></span>
+      <span><span class="k">wall</span> <b>wall-a</b></span>
+      <span>·</span>
+      <span><span class="k">config</span> <b>wall-a.json</b></span>
+      <span>·</span>
+      <span><span class="k">net</span> <b>127.0.0.1:55010</b></span>
+    </div>
+    <div class="win-ctrl"><span>—</span><span>▢</span><span>✕</span></div>
+  </header>
+
+  <!-- ===== Menu ===== -->
+  <nav class="menu">
+    <span class="m">파일</span>
+    <span class="m">편집</span>
+    <span class="m">보기</span>
+    <span class="m">장치</span>
+    <span class="m">캘리브레이션</span>
+    <span class="m">리플레이</span>
+    <span class="m">도구</span>
+    <span class="m">도움말</span>
+  </nav>
+
+  <!-- ===== Tabs ===== -->
+  <div class="tabs">
+    <span class="tab"><span>장치</span><span class="count">1</span></span>
+    <span class="tab active"><span>스테이션</span><span class="count">4</span></span>
+    <span class="tab"><span>캘리브레이션</span></span>
+    <span class="tab"><span>Unity 연동</span></span>
+    <span class="tab"><span>리플레이 / 진단</span></span>
+  </div>
+
+  <!-- ===== Toolbar ===== -->
+  <div class="toolbar">
+    <button class="btn ok">장치 새로고침</button>
+    <button class="btn primary">전체 스트림 시작</button>
+    <button class="btn">전체 정지</button>
+    <div class="sep"></div>
+    <button class="btn">캘리브 불러오기</button>
+    <button class="btn">캘리브 저장</button>
+    <div class="sep"></div>
+    <button class="btn">Unity 송신 켜짐 <span class="kbd">⏎</span></button>
+    <button class="btn warn">녹화 시작 <span class="kbd">R</span></button>
+
+    <div class="spacer"></div>
+
+    <span class="chip"><span class="led"></span><span class="label">장치</span><span class="value">1 / 1</span></span>
+    <span class="chip"><span class="led"></span><span class="label">Skeleton</span><span class="value">30 fps</span></span>
+    <span class="chip"><span class="led warn"></span><span class="label">동기화</span><span class="value">Primary only</span></span>
+    <span class="chip"><span class="led"></span><span class="label">Unity</span><span class="value">connected</span></span>
+  </div>
+
+  <!-- ===== Body ===== -->
+  <div class="body">
+
+    <!-- ===== LEFT pane ===== -->
+    <aside class="pane">
+      <div class="pane-head">스테이션 <span class="sub">wall-a · 4</span></div>
+
+      <div class="stack">
+
+        <div class="group-label">Wall A</div>
+
+        <article class="station s-active selected">
+          <span class="bar"></span>
+          <div class="info">
+            <div class="heading">
+              <span class="num">01</span>
+              <span class="nm">스테이션 1</span>
+            </div>
+            <div class="meta">
+              <span class="dev">FemtoBolt</span>
+              <span>·</span>
+              <span>CL8D34301234</span>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="state-pill"><span class="pulse"></span>Active</span>
+            <span class="live">conf 0.78</span>
+          </div>
+        </article>
+
+        <article class="station s-entering">
+          <span class="bar"></span>
+          <div class="info">
+            <div class="heading">
+              <span class="num">02</span>
+              <span class="nm">스테이션 2</span>
+            </div>
+            <div class="meta">
+              <span class="dev">FemtoBolt</span>
+              <span>·</span>
+              <span>CL8D34305678</span>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="state-pill"><span class="pulse"></span>Entering</span>
+            <span class="live">0.2 s</span>
+          </div>
+        </article>
+
+        <article class="station s-empty">
+          <span class="bar"></span>
+          <div class="info">
+            <div class="heading">
+              <span class="num">03</span>
+              <span class="nm">스테이션 3</span>
+            </div>
+            <div class="meta">
+              <span>미할당</span>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="state-pill">Empty</span>
+            <span class="live">—</span>
+          </div>
+        </article>
+
+        <article class="station s-lost">
+          <span class="bar"></span>
+          <div class="info">
+            <div class="heading">
+              <span class="num">04</span>
+              <span class="nm">스테이션 4</span>
+            </div>
+            <div class="meta">
+              <span class="dev">FemtoMega</span>
+              <span>·</span>
+              <span>CL8D34309999</span>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="state-pill"><span class="pulse"></span>Lost</span>
+            <span class="live">0.8 s</span>
+          </div>
+        </article>
+
+        <div class="group-label" style="margin-top: var(--s-3);">장치</div>
+
+        <div class="device">
+          <span class="ic">D1</span>
+          <div class="body-col">
+            <div class="label">FemtoBolt #1</div>
+            <div class="sub">CL8D34301234 · USB</div>
+          </div>
+          <span class="state-pill" style="background: var(--st-ok-bg); color: var(--st-ok);">stream</span>
+        </div>
+        <div class="device">
+          <span class="ic">D2</span>
+          <div class="body-col">
+            <div class="label">FemtoBolt #2</div>
+            <div class="sub">CL8D34305678 · USB</div>
+          </div>
+          <span class="state-pill" style="background: var(--st-warn-bg); color: var(--st-warn);">connecting</span>
+        </div>
+        <div class="device">
+          <span class="ic">D3</span>
+          <div class="body-col">
+            <div class="label">FemtoMega #1</div>
+            <div class="sub">CL8D34309999 · Ethernet</div>
+          </div>
+          <span class="state-pill" style="background: var(--st-err-bg); color: var(--st-err);">error</span>
+        </div>
+        <div class="device">
+          <span class="ic">MR</span>
+          <div class="body-col">
+            <div class="label">MockReplay</div>
+            <div class="sub">rec_2026-05-21_14-22.dscrec</div>
+          </div>
+          <span class="state-pill">idle</span>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- ===== CENTER pane ===== -->
+    <main class="pane center">
+
+      <div class="ctabs">
+        <span class="ct active">평면도 (XZ)</span>
+        <span class="ct">Skeleton 미리보기</span>
+        <span class="ct">Joint 테이블</span>
+        <span class="ct">프레임 검사</span>
+        <span class="ct">Unity Heartbeat</span>
+      </div>
+
+      <div class="viz">
+        <div class="grid-overlay"></div>
+
+        <div class="hud">
+          <div class="tool active" title="이동">⤧</div>
+          <div class="tool" title="확대/축소">⊕</div>
+          <div class="tool" title="ROI 편집">▭</div>
+          <div class="tool" title="발 마커 캡처">⊙</div>
+          <div class="tool" title="Unity Anchor 설정">⚓</div>
+          <div class="tool" title="격자 스냅">▦</div>
+        </div>
+
+        <div class="legend">
+          <div class="ttl">범례</div>
+          <div class="row"><span class="sw" style="background: oklch(70% 0.16 230)"></span><span>Camera FOV</span></div>
+          <div class="row"><span class="sw" style="background: oklch(76% 0.17 150 / 0.4); border:1px solid var(--st-ok)"></span><span>추적 ROI</span></div>
+          <div class="row"><span class="sw dot" style="background: var(--st-warn)"></span><span>발 마커</span></div>
+          <div class="row"><span class="sw dot" style="background: var(--ink-0)"></span><span>골반 (pelvis)</span></div>
+          <div class="row"><span class="sw" style="background: var(--st-lost)"></span><span>Lost 영역</span></div>
+        </div>
+
+        <svg viewBox="0 0 920 540" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="fovG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="oklch(70% 0.16 230)" stop-opacity="0.0"/>
+              <stop offset="100%" stop-color="oklch(70% 0.16 230)" stop-opacity="0.22"/>
+            </linearGradient>
+          </defs>
+
+          <!-- World axes -->
+          <g stroke-linecap="round">
+            <line x1="44" y1="494" x2="100" y2="494" stroke="oklch(60% 0.16 22)" stroke-width="1.5"/>
+            <text x="106" y="498" fill="oklch(70% 0.13 22)" font-size="11" font-family="JetBrains Mono">X</text>
+            <line x1="44" y1="494" x2="44" y2="438" stroke="oklch(70% 0.16 230)" stroke-width="1.5"/>
+            <text x="48" y="434" fill="oklch(78% 0.13 230)" font-size="11" font-family="JetBrains Mono">Z</text>
+          </g>
+
+          <!-- Station 1 — Active -->
+          <g transform="translate(150 96)">
+            <polygon points="0,16 -118,376 118,376" fill="url(#fovG)" stroke="oklch(70% 0.16 230)" stroke-opacity="0.35"/>
+            <rect x="-22" y="-12" width="44" height="22" rx="3" fill="oklch(21% 0.008 240)" stroke="oklch(70% 0.16 230)" stroke-width="1.4"/>
+            <text x="0" y="3" text-anchor="middle" fill="oklch(85% 0.06 230)" font-size="10" font-family="JetBrains Mono">CAM 1</text>
+
+            <rect x="-72" y="220" width="144" height="116" rx="4"
+                  fill="oklch(76% 0.17 150 / 0.10)" stroke="oklch(76% 0.17 150)" stroke-width="1.3"/>
+            <text x="-66" y="216" fill="oklch(76% 0.17 150)" font-size="10" font-family="JetBrains Mono">ROI 1.4 × 0.9 m</text>
+
+            <circle cx="0" cy="278" r="22" fill="none" stroke="oklch(82% 0.16 85)" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <circle cx="0" cy="278" r="5" fill="oklch(82% 0.16 85)"/>
+            <text x="11" y="282" fill="oklch(82% 0.16 85)" font-size="10" font-family="JetBrains Mono">0.0, 2.1</text>
+
+            <g stroke="white" stroke-linecap="round">
+              <circle cx="-8" cy="266" r="6.5" fill="oklch(97% 0.004 240)" stroke="oklch(76% 0.17 150)" stroke-width="2"/>
+              <line x1="-8" y1="266" x2="-8" y2="242" stroke-width="2"/>
+              <line x1="-8" y1="248" x2="-22" y2="258" stroke-width="2"/>
+              <line x1="-8" y1="248" x2="6"   y2="258" stroke-width="2"/>
+              <line x1="-8" y1="266" x2="-18" y2="294" stroke-width="2"/>
+              <line x1="-8" y1="266" x2="2"   y2="294" stroke-width="2"/>
+            </g>
+
+            <g transform="translate(0 -32)">
+              <rect x="-62" y="-13" width="124" height="22" rx="3" fill="oklch(30% 0.08 150 / 0.4)" stroke="oklch(76% 0.17 150)"/>
+              <text x="0" y="3" text-anchor="middle" fill="oklch(85% 0.13 150)" font-size="11" font-family="Inter Tight" font-weight="600">S1 · ACTIVE</text>
+            </g>
+          </g>
+
+          <!-- Station 2 — Entering -->
+          <g transform="translate(380 96)">
+            <polygon points="0,16 -118,376 118,376" fill="url(#fovG)" stroke="oklch(70% 0.16 230)" stroke-opacity="0.35"/>
+            <rect x="-22" y="-12" width="44" height="22" rx="3" fill="oklch(21% 0.008 240)" stroke="oklch(70% 0.16 230)" stroke-width="1.4"/>
+            <text x="0" y="3" text-anchor="middle" fill="oklch(85% 0.06 230)" font-size="10" font-family="JetBrains Mono">CAM 2</text>
+
+            <rect x="-72" y="220" width="144" height="116" rx="4"
+                  fill="oklch(82% 0.16 85 / 0.10)" stroke="oklch(82% 0.16 85)" stroke-width="1.3"/>
+            <text x="-66" y="216" fill="oklch(82% 0.16 85)" font-size="10" font-family="JetBrains Mono">ROI</text>
+
+            <circle cx="0" cy="278" r="22" fill="none" stroke="oklch(82% 0.16 85)" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <circle cx="0" cy="278" r="5" fill="oklch(82% 0.16 85)"/>
+
+            <g stroke="white" stroke-linecap="round">
+              <circle cx="36" cy="240" r="6.5" fill="oklch(97% 0.004 240)" stroke="oklch(82% 0.16 85)" stroke-width="2"/>
+              <line x1="36" y1="240" x2="36" y2="218" stroke-width="2"/>
+              <line x1="36" y1="240" x2="28" y2="266" stroke-width="2"/>
+              <line x1="36" y1="240" x2="46" y2="266" stroke-width="2"/>
+            </g>
+
+            <g transform="translate(0 -32)">
+              <rect x="-78" y="-13" width="156" height="22" rx="3" fill="oklch(35% 0.09 85 / 0.4)" stroke="oklch(82% 0.16 85)"/>
+              <text x="0" y="3" text-anchor="middle" fill="oklch(88% 0.13 85)" font-size="11" font-family="Inter Tight" font-weight="600">S2 · ENTERING 0.2s</text>
+            </g>
+          </g>
+
+          <!-- Station 3 — Empty -->
+          <g transform="translate(610 96)">
+            <polygon points="0,16 -118,376 118,376" fill="oklch(50% 0.005 240 / 0.04)" stroke="oklch(36% 0.01 240)" stroke-opacity="0.5" stroke-dasharray="4 4"/>
+            <rect x="-22" y="-12" width="44" height="22" rx="3" fill="oklch(21% 0.008 240)" stroke="oklch(45% 0.010 240)" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <text x="0" y="3" text-anchor="middle" fill="oklch(58% 0.008 240)" font-size="10" font-family="JetBrains Mono">CAM —</text>
+
+            <rect x="-72" y="220" width="144" height="116" rx="4"
+                  fill="oklch(40% 0.008 240 / 0.06)" stroke="oklch(40% 0.012 240)" stroke-width="1.2" stroke-dasharray="4 4"/>
+            <circle cx="0" cy="278" r="22" fill="none" stroke="oklch(58% 0.008 240)" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <circle cx="0" cy="278" r="5" fill="oklch(58% 0.008 240)"/>
+
+            <g transform="translate(0 -32)">
+              <rect x="-62" y="-13" width="124" height="22" rx="3" fill="oklch(26% 0.008 240)" stroke="oklch(45% 0.010 240)"/>
+              <text x="0" y="3" text-anchor="middle" fill="oklch(70% 0.008 240)" font-size="11" font-family="Inter Tight" font-weight="600">S3 · EMPTY</text>
+            </g>
+          </g>
+
+          <!-- Station 4 — Lost -->
+          <g transform="translate(800 96)">
+            <polygon points="0,16 -118,376 118,376" fill="oklch(72% 0.18 305 / 0.06)" stroke="oklch(72% 0.18 305)" stroke-opacity="0.4"/>
+            <rect x="-22" y="-12" width="44" height="22" rx="3" fill="oklch(21% 0.008 240)" stroke="oklch(72% 0.18 305)" stroke-width="1.4"/>
+            <text x="0" y="3" text-anchor="middle" fill="oklch(85% 0.10 305)" font-size="10" font-family="JetBrains Mono">CAM 4</text>
+
+            <rect x="-72" y="220" width="144" height="116" rx="4"
+                  fill="oklch(72% 0.18 305 / 0.10)" stroke="oklch(72% 0.18 305)" stroke-width="1.3"/>
+            <circle cx="0" cy="278" r="22" fill="none" stroke="oklch(82% 0.16 85)" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <circle cx="0" cy="278" r="5" fill="oklch(82% 0.16 85)"/>
+
+            <g opacity="0.55" stroke-dasharray="2 2">
+              <circle cx="-46" cy="312" r="6.5" fill="oklch(17% 0.006 240)" stroke="oklch(72% 0.18 305)" stroke-width="2"/>
+              <line x1="-46" y1="312" x2="-46" y2="288" stroke="oklch(72% 0.18 305)" stroke-width="2"/>
+            </g>
+
+            <g transform="translate(0 -32)">
+              <rect x="-68" y="-13" width="136" height="22" rx="3" fill="oklch(32% 0.10 305 / 0.4)" stroke="oklch(72% 0.18 305)"/>
+              <text x="0" y="3" text-anchor="middle" fill="oklch(88% 0.10 305)" font-size="11" font-family="Inter Tight" font-weight="600">S4 · LOST 0.8s</text>
+            </g>
+          </g>
+
+          <!-- Unity anchor rail -->
+          <g transform="translate(0 484)">
+            <line x1="80" y1="0" x2="840" y2="0" stroke="oklch(34% 0.012 240)" stroke-dasharray="2 5"/>
+            <g transform="translate(150 0)"><circle r="3.5" fill="oklch(72% 0.16 230)"/><text x="0" y="18" text-anchor="middle" fill="oklch(78% 0.10 230)" font-size="10" font-family="JetBrains Mono">−3.0, 0, 0</text></g>
+            <g transform="translate(380 0)"><circle r="3.5" fill="oklch(72% 0.16 230)"/><text x="0" y="18" text-anchor="middle" fill="oklch(78% 0.10 230)" font-size="10" font-family="JetBrains Mono">−1.0, 0, 0</text></g>
+            <g transform="translate(610 0)"><circle r="3.5" fill="oklch(72% 0.16 230)"/><text x="0" y="18" text-anchor="middle" fill="oklch(78% 0.10 230)" font-size="10" font-family="JetBrains Mono">+1.0, 0, 0</text></g>
+            <g transform="translate(800 0)"><circle r="3.5" fill="oklch(72% 0.16 230)"/><text x="0" y="18" text-anchor="middle" fill="oklch(78% 0.10 230)" font-size="10" font-family="JetBrains Mono">+3.0, 0, 0</text></g>
+          </g>
+        </svg>
+
+        <div class="telemetry">
+          <div class="read"><span class="k">grid</span><span class="v">1 cell = 0.1 m</span></div>
+          <div class="read"><span class="k">pelvis</span><span class="v">X −0.04 · Y 0.91 · Z 2.14</span></div>
+        </div>
+      </div>
+
+      <!-- Logs -->
+      <section class="logs">
+        <div class="logs-head">
+          <span class="lt active">이벤트 로그</span>
+          <span class="lt">Skeleton 프레임</span>
+          <span class="lt">Unity 송신</span>
+          <span class="lt">장치 진단</span>
+          <span class="spacer"></span>
+          <span class="filter">필터 · level ≥ <b>INFO</b></span>
+          <button class="btn" style="height:24px;padding:0 10px;">내보내기</button>
+          <button class="btn" style="height:24px;padding:0 10px;">지우기</button>
+        </div>
+        <div class="log-list">
+          <div class="log-row"><span class="t">14:22:08.012</span><span class="lv INFO">INFO</span><span class="src">[Device]</span><span class="msg">FemtoBolt CL8D34301234 discovered (USB)</span></div>
+          <div class="log-row"><span class="t">14:22:08.156</span><span class="lv OK">OK</span><span class="src">[Device]</span><span class="msg">stream started · depth=NFOV_UNBINNED fps=30 sync=Primary</span></div>
+          <div class="log-row"><span class="t">14:22:09.401</span><span class="lv INFO">INFO</span><span class="src">[Station1]</span><span class="msg">skeleton acquired · confidence=0.71</span></div>
+          <div class="log-row"><span class="t">14:22:09.812</span><span class="lv OK">OK</span><span class="src">[Station1]</span><span class="msg">state Empty → Entering (pelvis inside ROI 0.41s)</span></div>
+          <div class="log-row"><span class="t">14:22:10.221</span><span class="lv OK">OK</span><span class="src">[Station1]</span><span class="msg">state Entering → Active (stable 0.42s, conf=0.78)</span></div>
+          <div class="log-row"><span class="t">14:22:10.230</span><span class="lv INFO">INFO</span><span class="src">[Unity]</span><span class="msg">→ UDP 127.0.0.1:55010 · StationSkeletonFrame{S=1, HasPlayer=true, joints=26}</span></div>
+          <div class="log-row"><span class="t">14:22:10.612</span><span class="lv WARN">WARN</span><span class="src">[Station4]</span><span class="msg">skeleton lost · entering grace period (1.5s)</span></div>
+          <div class="log-row"><span class="t">14:22:11.045</span><span class="lv ERR">ERR</span><span class="src">[Device]</span><span class="msg">FemtoMega CL8D34309999 reported error 0x2A · USB cable check required</span></div>
+          <div class="log-row"><span class="t">14:22:11.119</span><span class="lv INFO">INFO</span><span class="src">[Station2]</span><span class="msg">pelvis entered ROI · confidence below threshold (0.39 &lt; 0.45)</span></div>
+          <div class="log-row"><span class="t">14:22:11.402</span><span class="lv INFO">INFO</span><span class="src">[Unity]</span><span class="msg">heartbeat received · clientId=DanceApp · rtt=4ms</span></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===== RIGHT pane ===== -->
+    <aside class="pane inspector">
+
+      <div class="insp-hero">
+        <div class="eyebrow">인스펙터 · Station 01</div>
+        <div class="name">스테이션 1<br/><span style="color: var(--ink-3); font-weight: 500;">FemtoBolt</span></div>
+        <div class="state-line">
+          <span class="state-text">● Active</span>
+          <span style="font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-2);">stable 0.42 s</span>
+          <span class="conf"><span class="v">0.78</span><span class="k">conf</span></span>
+        </div>
+        <div class="conf-bar"><i style="width: 78%"></i></div>
+      </div>
+
+      <div class="insp-section">
+        <div class="insp-title"><span>기본 정보</span><span class="ctl">▾</span></div>
+        <div class="insp-body">
+          <div class="kv">
+            <div class="k">Station ID</div><div class="v mono">1</div>
+            <div class="k">표시 이름</div><div class="v">스테이션 1</div>
+            <div class="k">Camera Serial</div><div class="v mono">CL8D34301234</div>
+            <div class="k">장비 종류</div><div class="v">FemtoBolt</div>
+            <div class="k">연결</div><div class="v">USB</div>
+            <div class="k">Sync 역할</div><div class="v">Primary</div>
+            <div class="k">Depth Mode</div><div class="v mono">NFOV_UNBINNED</div>
+            <div class="k">FPS</div><div class="v mono">30</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="insp-section">
+        <div class="insp-title"><span>실시간 지표</span><span class="ctl">▾</span></div>
+        <div class="insp-body">
+          <div class="kv" style="margin-bottom: var(--s-3);">
+            <div class="k">HasPlayer</div><div class="v" style="color: var(--st-ok);">true</div>
+            <div class="k">ROI 내부</div><div class="v" style="color: var(--st-ok);">true</div>
+            <div class="k">발 마커 내부</div><div class="v" style="color: var(--st-ok);">true · Δ 0.08 m</div>
+            <div class="k">Lost 초</div><div class="v mono">0.00</div>
+            <div class="k">마지막 프레임</div><div class="v mono" style="color: var(--ink-2);">14:22:10.230</div>
+          </div>
+
+          <div class="metric-row">
+            <span class="lab">안정도</span><span class="val">86%</span>
+            <span class="bar"><i style="width: 86%"></i></span>
+          </div>
+          <div class="metric-row">
+            <span class="lab">Skeleton 품질</span><span class="val">78%</span>
+            <span class="bar"><i style="width: 78%"></i></span>
+          </div>
+          <div class="metric-row">
+            <span class="lab">프레임 지연</span><span class="val">22 ms</span>
+            <span class="bar warn"><i style="width: 22%"></i></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="insp-section">
+        <div class="insp-title"><span>캘리브레이션</span><span class="ctl">▾</span></div>
+        <div class="insp-body">
+
+          <div class="row-input full"><span class="lab">발 마커 중심 (m)</span></div>
+          <div class="triplet" style="margin-bottom: var(--s-3);">
+            <div class="axis x"><span class="a">X</span><span class="v">0.000</span></div>
+            <div class="axis y"><span class="a">Y</span><span class="v">0.000</span></div>
+            <div class="axis z"><span class="a">Z</span><span class="v">2.100</span></div>
+          </div>
+
+          <div class="row-input full"><span class="lab">추적 ROI (m)</span></div>
+          <div class="kv">
+            <div class="k">X 범위</div><div class="v mono">−0.70 → 0.70</div>
+            <div class="k">Y 범위</div><div class="v mono">  0.00 → 2.40</div>
+            <div class="k">Z 범위</div><div class="v mono">  1.50 → 2.80</div>
+          </div>
+
+          <hr class="rule"/>
+
+          <div class="row-input full"><span class="lab">Unity Anchor</span></div>
+          <div class="triplet">
+            <div class="axis x"><span class="a">X</span><span class="v">−3.000</span></div>
+            <div class="axis y"><span class="a">Y</span><span class="v">0.000</span></div>
+            <div class="axis z"><span class="a">Z</span><span class="v">0.000</span></div>
+          </div>
+          <div class="row-input"><span class="lab">회전 Y (도)</span><div class="num-field edit">0.000</div></div>
+
+          <hr class="rule"/>
+
+          <div class="cmd-grid">
+            <button class="cmd"><span class="glyph"></span>발 마커 캡처</button>
+            <button class="cmd"><span class="glyph"></span>기본 자세 캡처</button>
+            <button class="cmd"><span class="glyph"></span>ROI 자동 생성</button>
+            <button class="cmd"><span class="glyph"></span>ROI 편집</button>
+            <button class="cmd ok"><span class="glyph"></span>저장</button>
+            <button class="cmd"><span class="glyph"></span>불러오기</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="insp-section">
+        <div class="insp-title"><span>임계값</span><span class="ctl">▾</span></div>
+        <div class="insp-body">
+          <div class="row-input"><span class="lab">진입 안정 (초)</span><div class="num-field">0.40</div></div>
+          <div class="row-input"><span class="lab">Lost 유예 (초)</span><div class="num-field">1.50</div></div>
+          <div class="row-input"><span class="lab">이탈 확정 (초)</span><div class="num-field">3.00</div></div>
+          <div class="row-input"><span class="lab">최소 Confidence</span><div class="num-field">0.45</div></div>
+          <div class="row-input"><span class="lab">발 마커 반경 (m)</span><div class="num-field">0.45</div></div>
+        </div>
+      </div>
+
+      <div class="insp-section">
+        <div class="insp-title"><span>Unity 명령</span><span class="ctl">▾</span></div>
+        <div class="insp-body">
+          <div class="cmd-grid">
+            <button class="cmd ok"><span class="glyph"></span><span class="proto">game/start</span></button>
+            <button class="cmd warn"><span class="glyph"></span><span class="proto">game/reset</span></button>
+            <button class="cmd"><span class="glyph"></span><span class="proto">player/enter</span></button>
+            <button class="cmd"><span class="glyph"></span><span class="proto">player/exit</span></button>
+            <button class="cmd"><span class="glyph"></span><span class="proto">calibration/reload</span></button>
+            <button class="cmd danger"><span class="glyph"></span>강제 이탈</button>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- ===== Status strip ===== -->
+  <footer class="strip">
+    <div class="row">
+      <span class="seg"><span class="led"></span><span class="k">app</span><span class="v">정상</span></span>
+      <span class="seg"><span class="led info"></span><span class="k">skeleton</span><span class="v">UDP :55010 · 30 fps</span></span>
+      <span class="seg"><span class="led lost"></span><span class="k">event</span><span class="v">OSC :55011</span></span>
+      <span class="seg"><span class="led warn"></span><span class="k">sync hub</span><span class="v">미감지</span></span>
+      <span class="seg"><span class="k">sent</span><span class="v">12,408</span><span class="k">/ dropped</span><span class="v">3</span></span>
+    </div>
+    <div class="right">CPU 14% · GPU 9% · RAM 412 MB · DSCC 0.1.0-mvp · .NET 8 · WPF</div>
+  </footer>
+
+</div>
+
+</body>
+</html>

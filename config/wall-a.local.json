@@ -1,0 +1,59 @@
+{
+  "wallId": "wall-a",
+  "unity": {
+    "host": "127.0.0.1",
+    "skeletonPort": 55010,
+    "eventPort": 55011,
+    "statusPort": 55012,
+    "mirrorSkeletonX": true,
+    "stabilizeHeadRotation": true,
+    "headRotationSmoothingHalfLifeSeconds": 0.08,
+    "headRotationMaxDegreesPerSecond": 240,
+    "headRotationMinConfidence": 0.45,
+    "headRotationDeadZoneDegrees": 0.75
+  },
+  "stations": [
+    {
+      "stationId": 1,
+      "displayName": "Station 1",
+      "enabled": true,
+      "device": {
+        "deviceType": "FemtoBolt",
+        "serial": "CL8NB4300V1",
+        "connection": "USB",
+        "syncRole": "Primary",
+        "depthMode": "NFOV_2X2BINNED",
+        "fps": 15
+      },
+      "calibration": {
+        "cameraSerial": "CL8NB4300V1",
+        "footMarkerCenter": {
+          "x": 0,
+          "y": 0,
+          "z": 2
+        },
+        "trackingRoi": {
+          "minX": -0.6260411339155705,
+          "maxX": 0.7739588660844294,
+          "minY": 0,
+          "maxY": 2.4,
+          "minZ": 1,
+          "maxZ": 5
+        },
+        "unityAnchor": {
+          "x": -3,
+          "y": 0,
+          "z": 0,
+          "rotationY": 0
+        }
+      },
+      "thresholds": {
+        "enterStableSeconds": 0.4,
+        "lostGraceSeconds": 1.5,
+        "exitConfirmSeconds": 3,
+        "minSkeletonConfidence": 0.45,
+        "footMarkerRadiusMeters": 0.45
+      }
+    }
+  ]
+}
