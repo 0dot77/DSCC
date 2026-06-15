@@ -1,7 +1,9 @@
 using System.IO;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DSCC.App.Wpf.Services;
@@ -16,10 +18,10 @@ namespace DSCC.App.Wpf.ViewModels;
 
 public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 {
-    private const int BodyTrackingFpsLimit = 15;
-
     private readonly DsccConfigStore _configStore = new();
-    private readonly Dictionary<int, StationRuntime> _stationRuntimes = [];
+    private readonly ConcurrentDictionary<int, StationRuntime> _stationRuntimes = new();
+    private readonly ConcurrentDictionary<int, StationFrameUiUpdate> _pendingStationUpdates = new();
+    private int _stationUiFlushScheduled;
     private readonly Dictionary<string, OrbbecDeviceInfo> _discoveredOrbbecDevices = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<OrbbecStreamRuntime> _orbbecStreams = [];
     private readonly SemaphoreSlim _liveSenderGate = new(1, 1);
@@ -87,6 +89,29 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         ConfigPath = ResolveDefaultConfigPath();
         LoadConfig();
+
+        if (ShouldAutoStartLive())
+        {
+            AddLog("info", "Auto-start requested (--autostart / DSCC_AUTOSTART=1); starting Orbbec live input");
+            _ = Application.Current?.Dispatcher.InvokeAsync(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                if (!_disposed && !IsOrbbecLiveRunning)
+                {
+                    await StartOrbbecLiveAsync();
+                }
+            });
+        }
+    }
+
+    private static bool ShouldAutoStartLive()
+    {
+        if (Environment.GetCommandLineArgs().Any(arg => string.Equals(arg, "--autostart", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return string.Equals(Environment.GetEnvironmentVariable("DSCC_AUTOSTART"), "1", StringComparison.Ordinal);
     }
 
     public ObservableCollection<DeviceRowViewModel> Devices { get; } = [];
@@ -94,6 +119,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     public ObservableCollection<StationRowViewModel> Stations { get; } = [];
 
     public ObservableCollection<string> AvailableDeviceSerials { get; } = [];
+
+    /// <summary>Station ids a device can be pinned to; 0 = unassigned.</summary>
+    public ObservableCollection<int> AssignableStationIds { get; } = [];
 
     public ObservableCollection<LogEntryViewModel> Logs { get; } = [];
 
@@ -396,6 +424,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             _isLoadingConfig = true;
+            StopLiveStreamsForConfigReload();
             _config = _configStore.Load(ConfigPath);
             WallId = _config.WallId;
             UnityHost = _config.Unity.Host;
@@ -434,7 +463,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
                 Stations.Add(stationRow);
                 _stationRuntimes[station.StationId] = new StationRuntime(station, stateMachine, stationRow);
-                Devices.Add(new DeviceRowViewModel(
+                var deviceRow = new DeviceRowViewModel(
                     string.IsNullOrWhiteSpace(station.DeviceType) ? "MockReplay" : station.DeviceType,
                     stationRow.AssignedCameraSerial,
                     station.StationId,
@@ -444,8 +473,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                     station.Device.SyncRole)
                 {
                     Status = "connected"
-                });
+                };
+                deviceRow.PropertyChanged += DeviceRow_PropertyChanged;
+                Devices.Add(deviceRow);
             }
+
+            AssignableStationIds.Clear();
+            AssignableStationIds.Add(0);
+            foreach (var stationId in _stationRuntimes.Keys.OrderBy(id => id))
+            {
+                AssignableStationIds.Add(stationId);
+            }
+
+            UpdateAvailableDeviceSerials();
 
             SendFps = Devices.FirstOrDefault()?.ConfiguredFps ?? 0;
             HasUnsavedChanges = false;
@@ -581,9 +621,14 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        runtime.Row.ApplyEditorValues(runtime.Station);
-        runtime.Station.Thresholds.Validate();
-        runtime.StateMachine.Reset(DateTimeOffset.UtcNow);
+        lock (runtime.EvaluationLock)
+        {
+            runtime.Row.ApplyEditorValues(runtime.Station);
+            runtime.Station.Thresholds.Validate();
+            runtime.StateMachine.Reset(DateTimeOffset.UtcNow);
+        }
+
+        ResolveDuplicateSerialAssignments(stationId);
         SyncDeviceAssignments();
 
         if (logChange)
@@ -699,7 +744,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             ? "connected"
             : $"connected; FW {deviceInfo.FirmwareVersion ?? "unknown"} < recommended {OrbbecFirmwarePolicy.RecommendedFirmwareFor(deviceInfo.DeviceType)}";
 
-        Devices.Insert(0, new DeviceRowViewModel(
+        var discoveredRow = new DeviceRowViewModel(
             deviceInfo.DeviceType.ToString(),
             deviceInfo.Serial,
             configuredStation?.StationId ?? 0,
@@ -709,13 +754,120 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             configuredStation?.Device.SyncRole ?? "SDK")
         {
             Status = firmwareStatus
-        });
+        };
+        discoveredRow.PropertyChanged += DeviceRow_PropertyChanged;
+        Devices.Insert(0, discoveredRow);
+    }
+
+    private bool _isSyncingDeviceAssignments;
+
+    private void DeviceRow_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isSyncingDeviceAssignments ||
+            e.PropertyName != nameof(DeviceRowViewModel.AssignedStation) ||
+            sender is not DeviceRowViewModel device)
+        {
+            return;
+        }
+
+        AssignDeviceToStation(device.Serial, device.AssignedStation);
+    }
+
+    /// <summary>
+    /// Pins a device serial to a station (0 releases it). The serial is
+    /// removed from any other station so one camera never feeds two stations.
+    /// </summary>
+    private void AssignDeviceToStation(string serial, int stationId)
+    {
+        if (string.IsNullOrWhiteSpace(serial))
+        {
+            return;
+        }
+
+        if (stationId > 0 && _stationRuntimes.TryGetValue(stationId, out var target))
+        {
+            target.Row.AssignedCameraSerial = serial;
+            if (_discoveredOrbbecDevices.TryGetValue(serial, out var deviceInfo))
+            {
+                target.Row.DeviceType = deviceInfo.DeviceType.ToString();
+            }
+
+            ApplyStationEditor(stationId, logChange: false);
+            AddLog("info", $"Pinned {serial} to station {stationId} (save config to persist)");
+        }
+        else
+        {
+            foreach (var runtime in _stationRuntimes.Values)
+            {
+                if (string.Equals(runtime.Station.AssignedCameraSerial, serial, StringComparison.OrdinalIgnoreCase))
+                {
+                    runtime.Row.AssignedCameraSerial = string.Empty;
+                    ApplyStationEditor(runtime.Station.StationId, logChange: false);
+                }
+            }
+
+            AddLog("info", $"Released {serial} from station assignment");
+        }
+
+        UpdateAvailableDeviceSerials();
+        SyncDeviceAssignments();
+    }
+
+    /// <summary>
+    /// Last writer wins: when a serial is applied to one station, any other
+    /// station still holding it is released.
+    /// </summary>
+    private void ResolveDuplicateSerialAssignments(int ownerStationId)
+    {
+        if (!_stationRuntimes.TryGetValue(ownerStationId, out var owner))
+        {
+            return;
+        }
+
+        var serial = owner.Station.AssignedCameraSerial;
+        if (string.IsNullOrWhiteSpace(serial))
+        {
+            return;
+        }
+
+        foreach (var other in _stationRuntimes.Values)
+        {
+            if (other.Station.StationId == ownerStationId ||
+                !string.Equals(other.Station.AssignedCameraSerial, serial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            other.Row.AssignedCameraSerial = string.Empty;
+            lock (other.EvaluationLock)
+            {
+                other.Station.AssignedCameraSerial = string.Empty;
+            }
+
+            AddLog("info", $"Station {other.Station.StationId} released {serial}; it is now pinned to station {ownerStationId}");
+        }
     }
 
     private void UpdateAvailableDeviceSerials()
     {
+        // Discovered serials plus serials pinned in config, so offline
+        // cameras stay selectable and visible.
+        var serials = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var serial in _discoveredOrbbecDevices.Keys)
+        {
+            serials.Add(serial);
+        }
+
+        foreach (var runtime in _stationRuntimes.Values)
+        {
+            if (!string.IsNullOrWhiteSpace(runtime.Station.AssignedCameraSerial))
+            {
+                serials.Add(runtime.Station.AssignedCameraSerial);
+            }
+        }
+
         AvailableDeviceSerials.Clear();
-        foreach (var serial in _discoveredOrbbecDevices.Keys.OrderBy(serial => serial))
+        foreach (var serial in serials)
         {
             AvailableDeviceSerials.Add(serial);
         }
@@ -735,17 +887,36 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void SyncDeviceAssignments()
     {
-        foreach (var device in Devices)
+        _isSyncingDeviceAssignments = true;
+        try
         {
-            device.AssignedStation = FindConfiguredStationId(device.Serial);
+            foreach (var device in Devices)
+            {
+                device.AssignedStation = FindConfiguredStationId(device.Serial);
+            }
         }
+        finally
+        {
+            _isSyncingDeviceAssignments = false;
+        }
+    }
+
+    private HashSet<string> CollectAssignedSerials()
+    {
+        return new HashSet<string>(
+            _stationRuntimes.Values
+                .Select(runtime => runtime.Station.AssignedCameraSerial)
+                .Where(serial => !string.IsNullOrWhiteSpace(serial)),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private void AutoAssignDiscoveredDevices()
     {
+        // Devices already pinned to a station must not be handed out again.
+        var assignedSerials = CollectAssignedSerials();
         var freeDevices = new Queue<OrbbecDeviceInfo>(_discoveredOrbbecDevices.Values
             .OrderBy(device => device.Serial)
-            .Where(device => !string.IsNullOrWhiteSpace(device.Serial)));
+            .Where(device => !string.IsNullOrWhiteSpace(device.Serial) && !assignedSerials.Contains(device.Serial)));
 
         foreach (var runtime in _stationRuntimes.Values.OrderBy(runtime => runtime.Station.StationId))
         {
@@ -816,9 +987,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (_stationRuntimes.Values.All(runtime => string.IsNullOrWhiteSpace(runtime.Station.AssignedCameraSerial)))
+        // By default only explicitly pinned serials are used; opt-in config
+        // flag restores fill-empty-stations behavior for unattended setups.
+        if (_config.AutoAssignDevicesOnStart)
         {
-            AutoAssignDiscoveredDevices();
+            var assignedSerials = CollectAssignedSerials();
+            var hasUnassignedDevice = _discoveredOrbbecDevices.Values.Any(device =>
+                !string.IsNullOrWhiteSpace(device.Serial) && !assignedSerials.Contains(device.Serial));
+            var hasEmptyStation = _stationRuntimes.Values.Any(runtime =>
+                string.IsNullOrWhiteSpace(runtime.Station.AssignedCameraSerial));
+            if (hasUnassignedDevice && hasEmptyStation)
+            {
+                AutoAssignDiscoveredDevices();
+            }
         }
 
         _headRotationStabilizer.Reset();
@@ -835,6 +1016,22 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             _liveSkeletonSender = new UdpMessagePackSender(UnityHost, SkeletonPort);
         }
 
+        var bodyTracking = _config.BodyTracking ?? new BodyTrackingConfig();
+        var processingModes = bodyTracking.ProcessingModes is { Count: > 0 }
+            ? bodyTracking.ProcessingModes
+            : ["DirectML", "Cpu"];
+        var previewInterval = TimeSpan.FromMilliseconds(Math.Max(0.0, bodyTracking.PreviewIntervalMilliseconds));
+        var modelPath = string.Empty;
+        if (canUseBodyTracking && bodyTracking.UseLiteModel)
+        {
+            modelPath = ResolveLiteModelPath();
+            AddLog(
+                string.IsNullOrEmpty(modelPath) ? "warn" : "info",
+                string.IsNullOrEmpty(modelPath)
+                    ? "Lite body tracking model requested but dnn_model_2_0_lite_op11.onnx was not found; using the full model"
+                    : "Body tracking uses the lite model (dnn_model_2_0_lite_op11.onnx)");
+        }
+
         foreach (var runtime in _stationRuntimes.Values.OrderBy(runtime => runtime.Station.StationId))
         {
             var serial = runtime.Station.AssignedCameraSerial;
@@ -844,8 +1041,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             if (canUseBodyTracking &&
-                (await TryStartBodyTrackingSourceAsync(runtime, deviceInfo, "DirectML").ConfigureAwait(true) ||
-                 await TryStartBodyTrackingSourceAsync(runtime, deviceInfo, "Cpu").ConfigureAwait(true)))
+                await TryStartBodyTrackingChainAsync(runtime, deviceInfo, processingModes, modelPath, previewInterval).ConfigureAwait(true))
             {
                 continue;
             }
@@ -855,6 +1051,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 StationId = runtime.Station.StationId,
                 Fps = Math.Max(1, runtime.Station.Device.Fps),
                 PreviewMode = PreviewMode,
+                PreviewInterval = previewInterval,
                 EnableColorStream = PreviewMode == OrbbecPreviewMode.Color,
                 EnableInfraredStream = PreviewMode == OrbbecPreviewMode.Infrared,
                 EnableDepthStream = PreviewMode == OrbbecPreviewMode.Depth,
@@ -906,13 +1103,58 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
+    private async Task<bool> TryStartBodyTrackingChainAsync(
+        StationRuntime runtime,
+        OrbbecDeviceInfo deviceInfo,
+        IReadOnlyList<string> processingModes,
+        string modelPath,
+        TimeSpan previewInterval)
+    {
+        for (var index = 0; index < processingModes.Count; index++)
+        {
+            var processingMode = processingModes[index];
+            if (RequiresCudaRuntime(processingMode) && !CudaRuntimeProbe.IsLikelyAvailable())
+            {
+                AddLog("warn", $"Skipping {processingMode} body tracking for station {runtime.Station.StationId}: {CudaRuntimeProbe.Describe()}");
+                continue;
+            }
+
+            var isLastMode = index == processingModes.Count - 1;
+            if (await TryStartBodyTrackingSourceAsync(runtime, deviceInfo, processingMode, modelPath, previewInterval, isLastMode).ConfigureAwait(true))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool RequiresCudaRuntime(string processingMode)
+    {
+        return processingMode.Equals("Cuda", StringComparison.OrdinalIgnoreCase) ||
+               processingMode.Equals("TensorRT", StringComparison.OrdinalIgnoreCase) ||
+               processingMode.Equals("Gpu", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveLiteModelPath()
+    {
+        var litePath = Path.Combine(AppContext.BaseDirectory, "dnn_model_2_0_lite_op11.onnx");
+        return File.Exists(litePath) ? litePath : string.Empty;
+    }
+
     private async Task<bool> TryStartBodyTrackingSourceAsync(
         StationRuntime runtime,
         OrbbecDeviceInfo deviceInfo,
-        string processingMode)
+        string processingMode,
+        string modelPath,
+        TimeSpan previewInterval,
+        bool isLastMode)
     {
+        var bodyTracking = _config.BodyTracking ?? new BodyTrackingConfig();
         var configuredFps = Math.Max(1, runtime.Station.Device.Fps);
-        var effectiveFps = Math.Min(BodyTrackingFpsLimit, configuredFps);
+        var effectiveFps = Math.Min(Math.Max(1, bodyTracking.MaxFps), configuredFps);
+        var roi = runtime.Station.TrackingRoi;
+        var modelTag = string.IsNullOrEmpty(modelPath) ? "full model" : "lite model";
         var source = K4aBodyTrackingSkeletonSourceFactory.Create(new K4aBodyTrackingOptions
         {
             StationId = runtime.Station.StationId,
@@ -921,8 +1163,12 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             Fps = effectiveFps,
             DepthMode = runtime.Station.Device.DepthMode,
             ProcessingMode = processingMode,
+            ModelPath = modelPath,
+            GpuDeviceId = bodyTracking.GpuDeviceId,
+            BodySelectionRoi = new BodySelectionRoi(roi.MinX, roi.MaxX, roi.MinY, roi.MaxY, roi.MinZ, roi.MaxZ),
             SensorOrientation = "Default",
-            PreviewMode = PreviewMode
+            PreviewMode = PreviewMode,
+            PreviewInterval = previewInterval
         });
         source.FrameArrived += (_, args) => OnOrbbecSkeletonFrameArrived(runtime.Station.StationId, deviceInfo.Serial, args);
         source.SourceError += (_, message) => OnOrbbecSkeletonSourceError(runtime.Station.StationId, deviceInfo.Serial, message);
@@ -935,7 +1181,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             if (device is not null)
             {
                 device.Status = "streaming skeleton";
-                device.SkeletonStatus = $"K4A body tracking active ({processingMode}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})";
+                device.SkeletonStatus = $"K4A body tracking active ({processingMode}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})";
             }
 
             runtime.Row.UpdateCameraFrame(
@@ -943,15 +1189,16 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 "-",
                 0,
                 DateTimeOffset.Now,
-                $"K4A body tracking active ({processingMode}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
-            AddLog("info", $"Started K4A body tracking for station {runtime.Station.StationId} ({deviceInfo.Serial}, {processingMode}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
+                $"K4A body tracking active ({processingMode}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
+            AddLog("info", $"Started K4A body tracking for station {runtime.Station.StationId} ({deviceInfo.Serial}, {processingMode}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
             return true;
         }
         catch (Exception exception)
         {
             await source.DisposeAsync().ConfigureAwait(true);
-            var level = processingMode.Equals("DirectML", StringComparison.OrdinalIgnoreCase) ? "warn" : "error";
-            AddLog(level, $"K4A body tracking {processingMode} start failed for station {runtime.Station.StationId}: {exception.Message}");
+            AddLog(
+                isLastMode ? "error" : "warn",
+                $"K4A body tracking {processingMode} start failed for station {runtime.Station.StationId}: {exception.Message}");
             return false;
         }
     }
@@ -1010,95 +1257,172 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void OnOrbbecFrameArrived(int stationId, OrbbecFrameArrivedEventArgs args)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        QueueStationUiUpdate(stationId, new StationFrameUiUpdate
         {
-            _ = dispatcher.BeginInvoke(() => OnOrbbecFrameArrived(stationId, args));
-            return;
-        }
-
-        var frameTime = DateTimeOffset.FromUnixTimeMilliseconds(args.TimestampUsec / 1_000);
-        var resolution = args.HasDepth ? $"{args.DepthWidth}x{args.DepthHeight}" : "no depth";
-        var streamStatus = $"streaming {args.PreviewMode.ToString().ToLowerInvariant()}";
-        var device = Devices.FirstOrDefault(candidate => string.Equals(candidate.Serial, args.Serial, StringComparison.OrdinalIgnoreCase));
-        if (device is not null)
-        {
-            device.Status = streamStatus;
-            device.FramesReceived++;
-            device.Fps = args.EstimatedFps;
-            device.DepthResolution = resolution;
-            device.ColorResolution = args.HasColor ? $"{args.ColorWidth}x{args.ColorHeight}" : "-";
-            device.LastFrameTime = frameTime.ToLocalTime().ToString("HH:mm:ss.fff");
-            device.SkeletonStatus = "body tracking SDK not connected";
-        }
-
-        if (_stationRuntimes.TryGetValue(stationId, out var runtime))
-        {
-            runtime.Row.UpdateCameraFrame(
-                streamStatus,
-                resolution,
-                args.EstimatedFps,
-                frameTime,
-                "camera stream active; skeleton provider missing");
-            if (args.DepthPreview is not null)
-            {
-                runtime.Row.UpdateDepthPreview(args.DepthPreview, args.PreviewMode);
-            }
-        }
-
-        SendFps = Math.Max(0, (int)Math.Round(args.EstimatedFps));
+            Serial = args.Serial,
+            CameraStatus = $"streaming {args.PreviewMode.ToString().ToLowerInvariant()}",
+            Resolution = args.HasDepth ? $"{args.DepthWidth}x{args.DepthHeight}" : "no depth",
+            EstimatedFps = args.EstimatedFps,
+            FrameTime = DateTimeOffset.FromUnixTimeMilliseconds(args.TimestampUsec / 1_000),
+            SkeletonStatus = "camera stream active; skeleton provider missing",
+            Preview = args.DepthPreview,
+            PreviewMode = args.PreviewMode,
+            HasColor = args.HasColor,
+            ColorWidth = args.ColorWidth,
+            ColorHeight = args.ColorHeight,
+            FramesDelta = 1
+        });
     }
 
     private void OnOrbbecSkeletonFrameArrived(int stationId, string serial, OrbbecSkeletonFrameArrivedEventArgs args)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-        {
-            _ = dispatcher.BeginInvoke(() => OnOrbbecSkeletonFrameArrived(stationId, serial, args));
-            return;
-        }
-
         if (!_stationRuntimes.TryGetValue(stationId, out var runtime))
         {
             return;
         }
 
-        var evaluatedFrame = ApplyStationEvaluation(runtime, args.Frame);
-        var frameTime = DateTimeOffset.FromUnixTimeMilliseconds(evaluatedFrame.TimestampUsec / 1_000);
-        var resolution = args.DepthWidth > 0 && args.DepthHeight > 0
-            ? $"{args.DepthWidth}x{args.DepthHeight}"
-            : "depth unavailable";
+        // Runs on the source's read thread: domain evaluation and the Unity
+        // send stay off the UI thread; only the coalesced snapshot below is
+        // marshaled to the dispatcher.
+        var frame = args.Frame;
+        var (evaluation, footX, footZ) = EvaluateStationFrame(runtime, frame);
+
+        if (_liveSkeletonSender is not null)
+        {
+            _ = SendLiveFrameAsync(frame);
+        }
+
         var skeletonStatus = !string.IsNullOrWhiteSpace(args.TrackingStatus)
             ? args.TrackingStatus
             : args.BodyCount > 0
             ? $"tracking {args.BodyCount} body"
             : "no body";
-        var device = Devices.FirstOrDefault(candidate => string.Equals(candidate.Serial, serial, StringComparison.OrdinalIgnoreCase));
-        if (device is not null)
+
+        QueueStationUiUpdate(stationId, new StationFrameUiUpdate
         {
-            device.Status = "streaming skeleton";
-            device.FramesReceived++;
-            device.Fps = args.EstimatedFps;
-            device.DepthResolution = resolution;
-            device.LastFrameTime = frameTime.ToLocalTime().ToString("HH:mm:ss.fff");
-            device.SkeletonStatus = skeletonStatus;
+            Serial = serial,
+            CameraStatus = "streaming skeleton",
+            Resolution = args.DepthWidth > 0 && args.DepthHeight > 0
+                ? $"{args.DepthWidth}x{args.DepthHeight}"
+                : "depth unavailable",
+            EstimatedFps = args.EstimatedFps,
+            FrameTime = DateTimeOffset.FromUnixTimeMilliseconds(frame.TimestampUsec / 1_000),
+            SkeletonStatus = skeletonStatus,
+            Preview = args.DepthPreview,
+            PreviewMode = args.PreviewMode,
+            Frame = frame,
+            Evaluation = evaluation,
+            FootX = footX,
+            FootZ = footZ,
+            FramesDelta = 1
+        });
+    }
+
+    private void QueueStationUiUpdate(int stationId, StationFrameUiUpdate update)
+    {
+        _pendingStationUpdates.AddOrUpdate(
+            stationId,
+            update,
+            (_, previous) => update with
+            {
+                // A newer frame without a preview must not erase a pending one.
+                Preview = update.Preview ?? previous.Preview,
+                FramesDelta = previous.FramesDelta + update.FramesDelta
+            });
+
+        if (Interlocked.CompareExchange(ref _stationUiFlushScheduled, 1, 0) != 0)
+        {
+            return;
         }
 
-        runtime.Row.UpdateCameraFrame(
-            "streaming skeleton",
-            resolution,
-            args.EstimatedFps,
-            frameTime,
-            skeletonStatus);
-        if (args.DepthPreview is not null)
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null)
         {
-            runtime.Row.UpdateDepthPreview(args.DepthPreview, args.PreviewMode);
+            Volatile.Write(ref _stationUiFlushScheduled, 0);
+            return;
         }
 
-        SendFps = Math.Max(0, (int)Math.Round(args.EstimatedFps));
-        if (_liveSkeletonSender is not null)
+        _ = dispatcher.BeginInvoke(FlushStationUiUpdates, DispatcherPriority.Input);
+    }
+
+    private void FlushStationUiUpdates()
+    {
+        Volatile.Write(ref _stationUiFlushScheduled, 0);
+        foreach (var stationId in _pendingStationUpdates.Keys)
         {
-            _ = SendLiveFrameAsync(evaluatedFrame);
+            if (_pendingStationUpdates.TryRemove(stationId, out var update))
+            {
+                ApplyStationUiUpdate(stationId, update);
+            }
+        }
+    }
+
+    private void ApplyStationUiUpdate(int stationId, StationFrameUiUpdate update)
+    {
+        if (!_stationRuntimes.TryGetValue(stationId, out var runtime))
+        {
+            return;
+        }
+
+        var frameTimeText = update.FrameTime.ToLocalTime().ToString("HH:mm:ss.fff");
+        if (update.CameraStatus is not null)
+        {
+            var device = update.Serial is null
+                ? null
+                : Devices.FirstOrDefault(candidate => string.Equals(candidate.Serial, update.Serial, StringComparison.OrdinalIgnoreCase));
+            if (device is not null)
+            {
+                device.Status = update.CameraStatus;
+                device.FramesReceived += update.FramesDelta;
+                device.Fps = update.EstimatedFps;
+                device.DepthResolution = update.Resolution ?? "-";
+                device.ColorResolution = update.HasColor ? $"{update.ColorWidth}x{update.ColorHeight}" : "-";
+                device.LastFrameTime = frameTimeText;
+                if (update.SkeletonStatus is not null)
+                {
+                    device.SkeletonStatus = update.SkeletonStatus;
+                }
+            }
+
+            runtime.Row.UpdateCameraFrame(
+                update.CameraStatus,
+                update.Resolution ?? "-",
+                update.EstimatedFps,
+                update.FrameTime,
+                update.SkeletonStatus ?? runtime.Row.SkeletonSourceStatus);
+        }
+
+        if (update.Preview is not null)
+        {
+            runtime.Row.UpdateDepthPreview(update.Preview, update.PreviewMode);
+        }
+
+        if (update.Frame is { } frame && update.Evaluation is { } evaluation)
+        {
+            runtime.Row.State = evaluation.State.ToString();
+            runtime.Row.HasPlayer = evaluation.HasPlayer;
+            runtime.Row.Confidence = frame.Confidence;
+            runtime.Row.InsideRoi = evaluation.IsInsideTrackingRoi;
+            runtime.Row.InsideFootMarker = evaluation.IsInsideFootMarker;
+            runtime.Row.LostSeconds = (float)evaluation.TrackingLostSeconds;
+            runtime.Row.LastFrameTime = frameTimeText;
+            runtime.Row.PelvisX = frame.PelvisLocal.X;
+            runtime.Row.PelvisY = frame.PelvisLocal.Y;
+            runtime.Row.PelvisZ = frame.PelvisLocal.Z;
+            runtime.Row.FootX = update.FootX;
+            runtime.Row.FootZ = update.FootZ;
+            var jointCount = frame.Joints.Length;
+            var trackedJointCount = frame.Joints.Count(joint => joint.Confidence >= runtime.Station.Thresholds.MinSkeletonConfidence);
+            var averageJointConfidence = jointCount == 0
+                ? 0.0
+                : frame.Joints.Average(joint => joint.Confidence);
+            runtime.Row.UpdateSkeletonDiagnostics(jointCount, trackedJointCount, averageJointConfidence);
+            runtime.Row.UpdateSkeletonOverlay(frame.Joints);
+        }
+
+        if (update.EstimatedFps > 0)
+        {
+            SendFps = Math.Max(0, (int)Math.Round(update.EstimatedFps));
         }
     }
 
@@ -1153,7 +1477,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         var lockTaken = false;
         try
         {
-            await _liveSenderGate.WaitAsync().ConfigureAwait(true);
+            await _liveSenderGate.WaitAsync().ConfigureAwait(false);
             lockTaken = true;
             if (!ReferenceEquals(sender, _liveSkeletonSender))
             {
@@ -1161,7 +1485,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             var unityFrame = PrepareFrameForUnity(frame);
-            await sender.SendAsync(unityFrame, CancellationToken.None).ConfigureAwait(true);
+            await sender.SendAsync(unityFrame, CancellationToken.None).ConfigureAwait(false);
             PacketsSent++;
             LastSentTimestamp = DateTimeOffset.FromUnixTimeMilliseconds(unityFrame.TimestampUsec / 1_000)
                 .ToLocalTime()
@@ -1236,7 +1560,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                     await foreach (var frame in generator.PlaySequenceAsync(options, cancellationToken).ConfigureAwait(true))
                     {
                         var evaluatedFrame = ApplyStationEvaluation(runtime, frame);
-                        await SendFrameAsync(sender, evaluatedFrame, cancellationToken);
+                        // Replay frames are stage-space; Unity expects the live K4A camera convention.
+                        await SendFrameAsync(sender, ReplayFrameConventions.ToK4aCameraConvention(evaluatedFrame), cancellationToken);
                     }
                 }
             }
@@ -1288,7 +1613,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         await using var sender = new UdpMessagePackSender(UnityHost, SkeletonPort);
-        await SendFrameAsync(sender, ApplyStationEvaluation(runtime, frame), CancellationToken.None);
+        await SendFrameAsync(sender, ReplayFrameConventions.ToK4aCameraConvention(ApplyStationEvaluation(runtime, frame)), CancellationToken.None);
         AddLog("info", "Sent one active StationSkeletonFrame");
     }
 
@@ -1325,8 +1650,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        runtime.StateMachine.Reset(DateTimeOffset.UtcNow);
-        runtime.Station.State = state;
+        lock (runtime.EvaluationLock)
+        {
+            runtime.StateMachine.Reset(DateTimeOffset.UtcNow);
+            runtime.Station.State = state;
+        }
         runtime.Row.State = state.ToString();
         runtime.Row.HasPlayer = state is StationState.Entering or StationState.Active;
         runtime.Row.LastFrameTime = DateTimeOffset.Now.ToString("HH:mm:ss.fff");
@@ -1379,6 +1707,23 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private StationSkeletonFrame ApplyStationEvaluation(StationRuntime runtime, StationSkeletonFrame frame)
     {
+        var (evaluation, footX, footZ) = EvaluateStationFrame(runtime, frame);
+        QueueStationUiUpdate(runtime.Station.StationId, new StationFrameUiUpdate
+        {
+            FrameTime = DateTimeOffset.FromUnixTimeMilliseconds(frame.TimestampUsec / 1_000),
+            Frame = frame,
+            Evaluation = evaluation,
+            FootX = footX,
+            FootZ = footZ
+        });
+
+        return frame;
+    }
+
+    private (StationTrackingEvaluation Evaluation, double FootX, double FootZ) EvaluateStationFrame(
+        StationRuntime runtime,
+        StationSkeletonFrame frame)
+    {
         var timestamp = DateTimeOffset.FromUnixTimeMilliseconds(frame.TimestampUsec / 1_000);
         var pelvis = new Vector3Meters(frame.PelvisLocal.X, frame.PelvisLocal.Y, frame.PelvisLocal.Z);
         var fallbackFoot = new Vector3Meters(frame.PelvisLocal.X, 0.0, frame.PelvisLocal.Z);
@@ -1399,38 +1744,27 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         sample.LeftFootPosition = leftFoot;
         sample.RightFootPosition = rightFoot;
-
         sample.CameraSerial = frame.CameraSerial;
-        var evaluation = runtime.StateMachine.Update(sample, timestamp);
 
-        frame.State = ToDto(evaluation.State);
-        frame.HasPlayer = evaluation.HasPlayer;
-        frame.IsInsideTrackingRoi = evaluation.IsInsideTrackingRoi;
-        frame.IsInsideFootMarker = evaluation.IsInsideFootMarker;
-        frame.TrackingLostSeconds = (float)evaluation.TrackingLostSeconds;
-        frame.Confidence = (float)evaluation.Confidence;
+        StationTrackingEvaluation evaluation;
+        lock (runtime.EvaluationLock)
+        {
+            evaluation = runtime.StateMachine.Update(sample, timestamp);
 
-        runtime.Row.State = evaluation.State.ToString();
-        runtime.Row.HasPlayer = evaluation.HasPlayer;
-        runtime.Row.Confidence = frame.Confidence;
-        runtime.Row.InsideRoi = evaluation.IsInsideTrackingRoi;
-        runtime.Row.InsideFootMarker = evaluation.IsInsideFootMarker;
-        runtime.Row.LostSeconds = (float)evaluation.TrackingLostSeconds;
-        runtime.Row.LastFrameTime = timestamp.ToLocalTime().ToString("HH:mm:ss.fff");
-        runtime.Row.PelvisX = frame.PelvisLocal.X;
-        runtime.Row.PelvisY = frame.PelvisLocal.Y;
-        runtime.Row.PelvisZ = frame.PelvisLocal.Z;
-        runtime.Row.FootX = primaryFoot.X;
-        runtime.Row.FootZ = primaryFoot.Z;
-        var jointCount = frame.Joints.Length;
-        var trackedJointCount = frame.Joints.Count(joint => joint.Confidence >= runtime.Station.Thresholds.MinSkeletonConfidence);
-        var averageJointConfidence = jointCount == 0
-            ? 0.0
-            : frame.Joints.Average(joint => joint.Confidence);
-        runtime.Row.UpdateSkeletonDiagnostics(jointCount, trackedJointCount, averageJointConfidence);
-        runtime.Row.UpdateSkeletonOverlay(frame.Joints);
+            frame.State = ToDto(evaluation.State);
+            frame.HasPlayer = evaluation.HasPlayer;
+            frame.IsInsideTrackingRoi = evaluation.IsInsideTrackingRoi;
+            frame.IsInsideFootMarker = evaluation.IsInsideFootMarker;
+            frame.TrackingLostSeconds = (float)evaluation.TrackingLostSeconds;
+            frame.Confidence = (float)evaluation.Confidence;
+            frame.AnchorPosition = new Vector3Dto(
+                (float)runtime.Station.UnityAnchor.X,
+                (float)runtime.Station.UnityAnchor.Y,
+                (float)runtime.Station.UnityAnchor.Z);
+            frame.AnchorRotationYDegrees = (float)runtime.Station.UnityAnchor.RotationY;
+        }
 
-        return frame;
+        return (evaluation, primaryFoot.X, primaryFoot.Z);
     }
 
     private static bool TryFindJoint(StationSkeletonFrame frame, string name, out Vector3Meters position)
@@ -1491,10 +1825,39 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void AddLog(string level, string message)
     {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(() => AddLog(level, message));
+            return;
+        }
+
         Logs.Insert(0, new LogEntryViewModel(DateTimeOffset.Now, level, message));
         while (Logs.Count > 200)
         {
             Logs.RemoveAt(Logs.Count - 1);
+        }
+
+        AppendLogToFile(level, message);
+    }
+
+    private static readonly object LogFileLock = new();
+
+    private static void AppendLogToFile(string level, string message)
+    {
+        try
+        {
+            lock (LogFileLock)
+            {
+                Directory.CreateDirectory("Log");
+                File.AppendAllText(
+                    Path.Combine("Log", "dscc-app.log"),
+                    $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}{Environment.NewLine}");
+            }
+        }
+        catch
+        {
+            // Logging must never take the app down.
         }
     }
 
@@ -1577,13 +1940,96 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         _liveSkeletonSender?.Dispose();
     }
 
+    private void StopLiveStreamsForConfigReload()
+    {
+        if (IsReplayRunning)
+        {
+            StopReplay();
+        }
+
+        if (_orbbecStreams.Count == 0)
+        {
+            return;
+        }
+
+        // Old sources reference the runtimes being torn down; detach them and
+        // dispose off the UI thread (their stop paths block on read loops).
+        var streamsToDispose = _orbbecStreams.ToArray();
+        _orbbecStreams.Clear();
+        _liveSkeletonSender?.Dispose();
+        _liveSkeletonSender = null;
+        IsOrbbecLiveRunning = false;
+        LiveInputStatus = "Orbbec idle";
+        _ = Task.Run(async () =>
+        {
+            foreach (var stream in streamsToDispose)
+            {
+                try
+                {
+                    if (stream.Source is not null)
+                    {
+                        await stream.Source.DisposeAsync().ConfigureAwait(false);
+                    }
+
+                    if (stream.SkeletonSource is not null)
+                    {
+                        await stream.SkeletonSource.DisposeAsync().ConfigureAwait(false);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    AddLog("error", $"Orbbec stream stop failed for station {stream.StationId}: {exception.Message}");
+                }
+            }
+        });
+        AddLog("info", "Stopped Orbbec live input for config reload");
+    }
+
     private sealed record StationRuntime(
         Station Station,
         StationStateMachine StateMachine,
-        StationRowViewModel Row);
+        StationRowViewModel Row)
+    {
+        public object EvaluationLock { get; } = new();
+    }
 
     private sealed record OrbbecStreamRuntime(
         int StationId,
         OrbbecSdkV2FrameSource? Source,
         IOrbbecSkeletonFrameSource? SkeletonSource);
+
+    private sealed record StationFrameUiUpdate
+    {
+        public string? Serial { get; init; }
+
+        public string? CameraStatus { get; init; }
+
+        public string? Resolution { get; init; }
+
+        public double EstimatedFps { get; init; }
+
+        public DateTimeOffset FrameTime { get; init; }
+
+        public string? SkeletonStatus { get; init; }
+
+        public DepthPreviewFrame? Preview { get; init; }
+
+        public OrbbecPreviewMode PreviewMode { get; init; }
+
+        public StationSkeletonFrame? Frame { get; init; }
+
+        public StationTrackingEvaluation? Evaluation { get; init; }
+
+        public double FootX { get; init; }
+
+        public double FootZ { get; init; }
+
+        public bool HasColor { get; init; }
+
+        public int ColorWidth { get; init; }
+
+        public int ColorHeight { get; init; }
+
+        public int FramesDelta { get; init; }
+    }
 }

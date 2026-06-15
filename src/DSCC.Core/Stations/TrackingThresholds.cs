@@ -14,6 +14,14 @@ public sealed class TrackingThresholds
 
     public double FootMarkerRadiusMeters { get; set; } = 0.45;
 
+    /// <summary>
+    /// When false (default), the foot marker only gates entry: a player must
+    /// stand on the marker to become Active, but may dance off it afterwards
+    /// as long as they stay inside the tracking ROI. When true, leaving the
+    /// marker also counts as tracking loss while Active (legacy behavior).
+    /// </summary>
+    public bool RequireFootMarkerWhileActive { get; set; }
+
     public static TrackingThresholds Default => new();
 
     [JsonIgnore]

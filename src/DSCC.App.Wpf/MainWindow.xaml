@@ -1220,7 +1220,16 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Type" Binding="{Binding DeviceType}" Width="*" />
                                         <DataGridTextColumn Header="Serial" Binding="{Binding Serial}" Width="1.7*" />
-                                        <DataGridTextColumn Header="Station" Binding="{Binding AssignedStation}" Width="90" />
+                                        <DataGridTemplateColumn Header="Station" Width="100">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding DataContext.AssignableStationIds, ElementName=Root}"
+                                                              SelectedItem="{Binding AssignedStation, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              ToolTip="이 시리얼을 고정할 Station 선택 (0 = 할당 해제). 변경 후 Save config로 저장"
+                                                              Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                         <DataGridTextColumn Header="Connection" Binding="{Binding Connection}" Width="110" />
                                         <DataGridTextColumn Header="Target" Binding="{Binding ConfiguredFps}" Width="70" />
                                         <DataGridTextColumn Header="Measured" Binding="{Binding Fps, StringFormat=0.0}" Width="90" />

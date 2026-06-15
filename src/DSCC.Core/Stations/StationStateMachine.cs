@@ -45,9 +45,15 @@ public sealed class StationStateMachine
             _validSince ??= timestamp;
             _lastValidTimestamp = timestamp;
 
-            if (CurrentState is StationState.Empty or StationState.Lost or StationState.Exited)
+            if (CurrentState is StationState.Empty or StationState.Exited)
             {
                 CurrentState = StationState.Entering;
+            }
+            else if (CurrentState is StationState.Lost)
+            {
+                // Recovering within the grace window is the same player; do not
+                // force them back through the entry gate.
+                CurrentState = StationState.Active;
             }
 
             if (CurrentState == StationState.Entering
@@ -113,7 +119,16 @@ public sealed class StationStateMachine
         var insideRoi = Station.Calibration.TrackingRoi.Contains(sample.PelvisPosition);
         var insideFootMarker = sample.FootCandidates()
             .Any(foot => Station.Calibration.IsInsideFootMarker(foot, Thresholds.FootMarkerRadiusMeters));
-        var isValidPlayer = meetsConfidence && insideRoi && insideFootMarker;
+
+        // The foot marker gates entry; once a player is Active (or within the
+        // Lost grace window) only confidence + ROI keep them valid, unless the
+        // station explicitly requires the marker while Active.
+        var meetsEntry = meetsConfidence && insideRoi && insideFootMarker;
+        var meetsPersistence = meetsConfidence && insideRoi
+            && (insideFootMarker || !Thresholds.RequireFootMarkerWhileActive);
+        var isValidPlayer = CurrentState is StationState.Active or StationState.Lost
+            ? meetsPersistence
+            : meetsEntry;
 
         return new CandidateEvaluation(
             true,

@@ -22,6 +22,8 @@ public sealed class MessagePackRoundTripTests
             TrackingLostSeconds = 0.0f,
             PelvisLocal = new Vector3Dto(0.1f, 1.2f, 2.3f),
             BodyRotation = new QuaternionDto(0.0f, 0.2f, 0.0f, 0.98f),
+            AnchorPosition = new Vector3Dto(-3.0f, 0.0f, 0.5f),
+            AnchorRotationYDegrees = 90.0f,
             Joints =
             [
                 new JointFrameDto
@@ -67,6 +69,10 @@ public sealed class MessagePackRoundTripTests
         Assert.Equal(0.91f, actual.Joints[0].Confidence);
         Assert.Equal("Head", actual.Joints[1].Name);
         Assert.Equal(1.8f, actual.Joints[1].PositionLocal.Y);
+        Assert.Equal(source.AnchorPosition.X, actual.AnchorPosition.X);
+        Assert.Equal(source.AnchorPosition.Y, actual.AnchorPosition.Y);
+        Assert.Equal(source.AnchorPosition.Z, actual.AnchorPosition.Z);
+        Assert.Equal(source.AnchorRotationYDegrees, actual.AnchorRotationYDegrees);
     }
 
     [Fact]
@@ -112,6 +118,8 @@ public sealed class MessagePackRoundTripTests
             TrackingLostSeconds = 0.0f,
             PelvisLocal = new Vector3Dto(0.25f, 1.2f, 2.3f),
             BodyRotation = new QuaternionDto(0.1f, 0.2f, -0.3f, 0.9f),
+            AnchorPosition = new Vector3Dto(-3.0f, 0.0f, 0.5f),
+            AnchorRotationYDegrees = 45.0f,
             Joints =
             [
                 new JointFrameDto
@@ -171,5 +179,10 @@ public sealed class MessagePackRoundTripTests
         var head = Assert.Single(actual.Joints, joint => joint.Name == "Head");
         Assert.Equal(-0.1f, head.PositionLocal.X);
         Assert.Equal(0.93f, head.Confidence);
+
+        // The Unity-space anchor must pass through the mirror untouched.
+        Assert.Equal(-3.0f, actual.AnchorPosition.X);
+        Assert.Equal(0.5f, actual.AnchorPosition.Z);
+        Assert.Equal(45.0f, actual.AnchorRotationYDegrees);
     }
 }

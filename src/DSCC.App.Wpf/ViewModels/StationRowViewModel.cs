@@ -21,6 +21,9 @@ public sealed class StationRowViewModel : ObservableObject
     private const double MarkerRadius = 5.0;
     private const double DefaultPreviewWidth = 160.0;
     private const double DefaultPreviewHeight = 144.0;
+    private static readonly TimeSpan OverlayUpdateInterval = TimeSpan.FromMilliseconds(100);
+    private DateTimeOffset _lastOverlayUpdateAt = DateTimeOffset.MinValue;
+    private bool _overlayCleared = true;
     private string _state = "Empty";
     private string _assignedCameraSerial = string.Empty;
     private string _deviceType = string.Empty;
@@ -668,10 +671,37 @@ public sealed class StationRowViewModel : ObservableObject
 
     public void UpdateSkeletonOverlay(IEnumerable<JointFrameDto> joints)
     {
+        // Rebuilding the overlay collections churns WPF layout; cap it at
+        // ~10Hz per station so four live cameras cannot saturate the UI thread.
         var jointMap = joints
             .Where(joint => !string.IsNullOrWhiteSpace(joint.Name))
             .GroupBy(joint => joint.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        var now = DateTimeOffset.UtcNow;
+        if (jointMap.Count == 0)
+        {
+            if (_overlayCleared)
+            {
+                return;
+            }
+
+            LiveJointPoints.Clear();
+            LiveBoneSegments.Clear();
+            LivePreviewJointPoints.Clear();
+            LivePreviewBoneSegments.Clear();
+            _overlayCleared = true;
+            _lastOverlayUpdateAt = now;
+            return;
+        }
+
+        if (now - _lastOverlayUpdateAt < OverlayUpdateInterval)
+        {
+            return;
+        }
+
+        _lastOverlayUpdateAt = now;
+        _overlayCleared = false;
 
         LiveJointPoints.Clear();
         LiveBoneSegments.Clear();

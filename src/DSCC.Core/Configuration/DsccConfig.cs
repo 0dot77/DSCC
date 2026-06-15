@@ -8,9 +8,47 @@ public sealed class DsccConfig
 {
     public string WallId { get; set; } = string.Empty;
 
+    /// <summary>
+    /// When true, live start fills empty stations with unassigned discovered
+    /// devices. Off by default: stations use only the serials explicitly
+    /// pinned to them (UI device list / Auto assign button / config).
+    /// </summary>
+    public bool AutoAssignDevicesOnStart { get; set; }
+
     public UnityLinkConfig Unity { get; set; } = new();
 
+    public BodyTrackingConfig BodyTracking { get; set; } = new();
+
     public List<StationConfig> Stations { get; set; } = [];
+}
+
+public sealed class BodyTrackingConfig
+{
+    /// <summary>
+    /// Tracker processing modes tried in order per station until one starts.
+    /// Valid values: Cuda, TensorRT, DirectML, Gpu, Cpu.
+    /// </summary>
+    public List<string> ProcessingModes { get; set; } = ["Cuda", "DirectML", "Cpu"];
+
+    /// <summary>
+    /// Use the k4abt lite model. Strongly recommended when several trackers
+    /// share one GPU; the full model is heavier per instance.
+    /// </summary>
+    public bool UseLiteModel { get; set; } = true;
+
+    /// <summary>
+    /// Upper bound applied to each station's configured camera fps for the
+    /// body tracking pipeline.
+    /// </summary>
+    public int MaxFps { get; set; } = 15;
+
+    public int GpuDeviceId { get; set; }
+
+    /// <summary>
+    /// Minimum interval between depth/IR preview images. 0 generates a preview
+    /// for every frame.
+    /// </summary>
+    public double PreviewIntervalMilliseconds { get; set; } = 150.0;
 }
 
 public sealed class UnityLinkConfig

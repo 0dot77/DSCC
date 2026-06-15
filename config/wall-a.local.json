@@ -1,5 +1,6 @@
 {
   "wallId": "wall-a",
+  "autoAssignDevicesOnStart": false,
   "unity": {
     "host": "127.0.0.1",
     "skeletonPort": 55010,
@@ -12,6 +13,17 @@
     "headRotationMinConfidence": 0.45,
     "headRotationDeadZoneDegrees": 0.75
   },
+  "bodyTracking": {
+    "processingModes": [
+      "Cuda",
+      "DirectML",
+      "Cpu"
+    ],
+    "useLiteModel": true,
+    "maxFps": 15,
+    "gpuDeviceId": 0,
+    "previewIntervalMilliseconds": 150
+  },
   "stations": [
     {
       "stationId": 1,
@@ -19,14 +31,14 @@
       "enabled": true,
       "device": {
         "deviceType": "FemtoBolt",
-        "serial": "CL8NB4300V1",
+        "serial": "CL2Z16500WS",
         "connection": "USB",
         "syncRole": "Primary",
         "depthMode": "NFOV_2X2BINNED",
         "fps": 15
       },
       "calibration": {
-        "cameraSerial": "CL8NB4300V1",
+        "cameraSerial": "CL2Z16500WS",
         "footMarkerCenter": {
           "x": 0,
           "y": 0,
@@ -52,7 +64,137 @@
         "lostGraceSeconds": 1.5,
         "exitConfirmSeconds": 3,
         "minSkeletonConfidence": 0.45,
-        "footMarkerRadiusMeters": 0.45
+        "footMarkerRadiusMeters": 0.45,
+        "requireFootMarkerWhileActive": false
+      }
+    },
+    {
+      "stationId": 2,
+      "displayName": "Station 2",
+      "enabled": true,
+      "device": {
+        "deviceType": "FemtoMega",
+        "serial": "",
+        "connection": "USB",
+        "syncRole": "Secondary",
+        "depthMode": "NFOV_2X2BINNED",
+        "fps": 15
+      },
+      "calibration": {
+        "cameraSerial": "",
+        "footMarkerCenter": {
+          "x": 0,
+          "y": 0,
+          "z": 2
+        },
+        "trackingRoi": {
+          "minX": -0.7,
+          "maxX": 0.7,
+          "minY": 0,
+          "maxY": 2.4,
+          "minZ": 1,
+          "maxZ": 5
+        },
+        "unityAnchor": {
+          "x": -1,
+          "y": 0,
+          "z": 0,
+          "rotationY": 0
+        }
+      },
+      "thresholds": {
+        "enterStableSeconds": 0.4,
+        "lostGraceSeconds": 1.5,
+        "exitConfirmSeconds": 3,
+        "minSkeletonConfidence": 0.45,
+        "footMarkerRadiusMeters": 0.45,
+        "requireFootMarkerWhileActive": false
+      }
+    },
+    {
+      "stationId": 3,
+      "displayName": "Station 3",
+      "enabled": true,
+      "device": {
+        "deviceType": "FemtoBolt",
+        "serial": "",
+        "connection": "USB",
+        "syncRole": "Secondary",
+        "depthMode": "NFOV_2X2BINNED",
+        "fps": 15
+      },
+      "calibration": {
+        "cameraSerial": "",
+        "footMarkerCenter": {
+          "x": 0,
+          "y": 0,
+          "z": 2
+        },
+        "trackingRoi": {
+          "minX": -0.7,
+          "maxX": 0.7,
+          "minY": 0,
+          "maxY": 2.4,
+          "minZ": 1,
+          "maxZ": 5
+        },
+        "unityAnchor": {
+          "x": 1,
+          "y": 0,
+          "z": 0,
+          "rotationY": 0
+        }
+      },
+      "thresholds": {
+        "enterStableSeconds": 0.4,
+        "lostGraceSeconds": 1.5,
+        "exitConfirmSeconds": 3,
+        "minSkeletonConfidence": 0.45,
+        "footMarkerRadiusMeters": 0.45,
+        "requireFootMarkerWhileActive": false
+      }
+    },
+    {
+      "stationId": 4,
+      "displayName": "Station 4",
+      "enabled": true,
+      "device": {
+        "deviceType": "FemtoBolt",
+        "serial": "",
+        "connection": "USB",
+        "syncRole": "Secondary",
+        "depthMode": "NFOV_2X2BINNED",
+        "fps": 15
+      },
+      "calibration": {
+        "cameraSerial": "",
+        "footMarkerCenter": {
+          "x": 0,
+          "y": 0,
+          "z": 2
+        },
+        "trackingRoi": {
+          "minX": -0.7,
+          "maxX": 0.7,
+          "minY": 0,
+          "maxY": 2.4,
+          "minZ": 1,
+          "maxZ": 5
+        },
+        "unityAnchor": {
+          "x": 3,
+          "y": 0,
+          "z": 0,
+          "rotationY": 0
+        }
+      },
+      "thresholds": {
+        "enterStableSeconds": 0.4,
+        "lostGraceSeconds": 1.5,
+        "exitConfirmSeconds": 3,
+        "minSkeletonConfidence": 0.45,
+        "footMarkerRadiusMeters": 0.45,
+        "requireFootMarkerWhileActive": false
       }
     }
   ]

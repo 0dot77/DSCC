@@ -1,0 +1,461 @@
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+Orbbec 3D All Rights Reserved
+
+Version V1.0
+
+Date November 1st, 2022
+
+Note First edition
+
+Copyright of this document belongs to Orbbec Inc. Orbbec 3D Technology International Inc. assures the accuracy of the information provided, but not the defects or errors that may exist on wording or images. All rights reserved to Orbbec 3D Technology International Inc. All information provided here is subject to change without notice. Contact your sales representative to obtain the latest Orbbec 3D product specifications. Orbbec 3D Technology International Inc. is not responsible for any users infringe third party copyright or other rights in use of Orbbec products. In addition, Orbbec 3D Technology International Inc. does not assume any liability for any products damages or any losses resulting from the damages for products being used in any extreme conditions. The products described may contain design defects or errors known as errata which may cause the product to deviate from published specifications. Current characterized errata are available on request. Intel disclaims all express and implied warranties, including without limitation, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement, as well as any warranty arising from course of performance, course of dealing, or usage in trade. All information provided here is subject
+to change without notice.
+
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+Contents
+1 Product Information ...........................................................................................................................8 1.1 Product Images .......................................................................................................................8 1.2 Product Components .............................................................................................................. 9 1.3 Camera field of view .............................................................................................................. 9 1.4 Product Interfaces .................................................................................................................11 1.5 Connection Type ...................................................................................................................11 1.6 Camera Setup and Operation ................................................................................................12
+2 Functions & Specifications ............................................................................................................. 12 2.1 Depth to Color Alignment .................................................................................................... 12 2.2 Multi-Camera Synchronization ............................................................................................ 12
+3 Electrical Properties ........................................................................................................................ 12 3.1 Indicators .............................................................................................................................. 12
+4. SDK ................................................................................................................................................13 5. Firmware ........................................................................................................................................ 14
+5.1 Firmware Update ..................................................................................................................14 5.2 Update Precautions ...............................................................................................................14 6 Installation Guide ............................................................................................................................ 14 6.1 Installation Recommendations ............................................................................................. 14 6.2 Heat Dissipation ................................................................................................................... 15 6.3 Transmittance Requirements ................................................................................................ 15 6.4 Cable Design Guide ............................................................................................................. 15 6.5 Case Temperature Limit ....................................................................................................... 15 7. Safety and Handling ....................................................................................................................... 16 7.1 Product Drawings ................................................................................................................. 17 8.Multi-Camera Synchronization .......................................................................................................18 9. Glossary of Terms .......................................................................................................................... 21
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+ORBBEC® Femto Mega
+Product
+Femto Mega is a programmable multi-mode Depth and RGB camera with real-time streaming of processed images over Ethernet or USB connections. The camera uses Microsoft’s industry proven ToF technology and the NVIDIA® Jetson™ platform to deliver a software-defined Depth and RGB vision platform for computer vision and AI developers.
+Product Features
+ 1Mega Pixel ToF sensor  4K RGB  IMU: 6DoF  Processor: NVIDIA Jetson Nano™  Data interfaces: Ethernet, USB-C 3.1  Power: PoE/USB-C/DC  Trigger/Sync Control  OS: Windows or Linux  Operating temperature: 10℃ ~ 25℃
+Product Characteristics
+ Performance High resolution sensor provides detailed scene understanding. Wide Field of View covers large area. Various operating modes for different applications.
+ Programmability In-camera processing of advanced depth vision algorithms. Integrated NVIDIA Jetson Nano™ system-on-module for AI processing can remove need for dedicated compute. Orbbec SDK enables easy setup and provides a rich set of APIs for integration with various applications.
+ Packaging Depth and RGB cameras in single device. Combined data and power with Power over Ethernet (PoE) or USB-C 3.1 connections eliminate need for multiple cables. Can be directly connected to servers or cloud as an IoT device. Precise synchronization trigger control uses standard Ethernet cables.
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+
+Mode WFOV Unbinned WFOV Binned NFOV Unbinned NFOV Binned
+
+Product Specification
+
+Camera Performance
+
+Resolution
+
+FPS
+
+Range
+
+FoV
+
+1024 x 1024 512 x 512
+
+5, 15 5, 15, 25, 30
+
+0.25m – 2.21m 0.25m – 2.88m
+
+H 120° V 120°
+
+640 x 576 5, 15, 25, 30
+
+320 x 288 5, 15, 25, 30
+
+3840 x 2160
+
+5, 15, 25
+
+0.5m – 3.86m 0.5m – 5.46m
+N/A
+
+H 75° V 65°
+
+Format Y16
+
+2560 x 1440 5, 15, 25, 30
+
+N/A
+
+RGB
+
+1920 x 1080 5, 15, 25, 30
+
+N/A
+
+H 80° V 51°
+
+YUY2, MJPG, H.264, H.265
+
+1280 x 720 5, 15, 25, 30
+
+N/A
+
+Depth typical systematic error (accuracy)* < 11 mm + 0.1% distance
+
+Depth random error std. dev.(precision)* ≤ 17 mm,
+
+Passive-IR mode supported *15% to 95% reflectivity at 850nm, 2.2 μW/cm2/nm without multi-path interference. Depending on object reflectivity, depth may be provided outside of the operating range indicated above.
+
+Parameter
+
+Specification
+
+Model
+
+F20364-552
+
+VID/PID
+
+0x2BC5/0x0669
+
+Technology
+
+iToF
+
+Shutter Type
+
+IR: Global Shutter; Color: Rolling Shutter
+
+Wavelength Data Connection
+
+850nm
+Type-C USB 3.0 Gigabit Ethernet
+
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+
+Network Protocol Power Mode
+
+8 Pin-Connector*1 Micro USB*2
+*1 for multi-device sync *2 for firmware upgrade and device reset
+RTSP, RTP
+DC/POE/Type-C
+
+Power Input
+
+DC 12V 2A POE+/802.3at (24W) Type-C 5V 3A
+
+Operating Mode
+Power Consumption
+Operating Environment Anti-flicker
+
+DC Power + Type-C Data Type-C Power + Type-C Data*1 POE Power + Gigabit Ethernet Data *2
+*1 Depth & IR mode support 640 x 576 and below, Y16 format. Color mode supports 1,920 x 1,080 and below, YUY2 and MJPG format. *2 Color mode supports H.264 and H.265 format
+Average*: DC power + Type-C data: 11 W Type-C power + Type-C data: 10W POE power + Gigabit Ethernet data: 13W Peak*: DC power + Type-C data:16W Type-C power + Type-C data:14W POE power + Gigabit Ethernet data: 17W
+10℃ - 25℃,8%RH - 90 %RH
+50Hz & 60Hz
+
+6 DoF
+
+IMU
+
+Frequency range: 50-2,000Hz
+
+Data format: float
+
+Mirror Mode Operating
+Environments Dimensions
+
+Supported, non-mirror by default Indoor/Semi-outdoor 145 mm × 115 mm × 40 mm ± 2mm
+
+Weight
+
+560g ± 3g
+
+Certifications
+
+ROHS, Reach, WEEE, CP65, EMC, FCC, IC, UKCA, Class 1 Laser
+
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Installation
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+Product, FDA
+Bottom: 1 x 1/4-20unc Sides: 4 x M2.5
+
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+1 Product Information
+1.1 Product Images
+Product Picture
+Rear view
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+1.2 Product Components
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+
+Femto Mega Components
+1.3 Camera field of view
+The next image shows the depth and RGB camera field-of-view, or the angles that the sensors "see". This diagram shows the RGB camera in a 4:3 mode.
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+This image demonstrates the camera's field-of-view as seen from the front at a distance of 2000 mm. When depth is in NFOV mode, the RGB camera has better pixel overlap in 4:3 than 16:9 resolutions.
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+1.4 Product Interfaces
+The hardware interfaces of Femto Mega camera is shown in the figure below.
+
+1.5 Connection Type
+
+Supported Connection Type
+
+1
+
+DC
+
+\
+
+2
+
+Type-C
+
+\
+
+3 Ethernet port with POE
+
+\
+
+4
+
+DC
+
+Type-C
+
+5
+
+DC
+
+Ethernet port with POE
+
+Ethernet port without
+
+6
+
+DC
+
+POE
+
+Camera Response
+\
+Type-C Ethernet Type-C Ethernet
+Ethernet
+
+Data Transmission Wait for data
+connection Type-C
+Ethernet
+Type-C
+Ethernet
+Ethernet
+
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+1.6 Camera Setup and Operation
+
+Packing List
+ Orbbec Femto Mega  USB Type-C to Type-C data cable  Power Adapter
+Initialization and operation
+ Connect Femto Mega via the cable to the host PC.  Check both indicators on the camera and validate that all cameras enumerate correctly in
+Windows device manager.  Download Orbbec SDK from https://orbbec3d.com/index/download.html  Validate that cable can stream reliably on all sensors in the Orbbec Viewer, with the following
+settings: o Depth camera: NFOV unbinned o RGB Camera: 2160p o IMU enabled
+ If for any reason that the camera is not responding or not being detected, please remove all cables from the camera and replug to the host PC for resetting the camera state.
+2 Functions & Specifications
+2.1 Depth to Color Alignment
+Femto Mega supports depth to color registration function. It enables the alignment of depth images to corresponding color images, provided both cameras are operated at the same frame rate. The D2C function can be activated through the Orbbec SDK.
+2.2 Multi-Camera Synchronization
+Each Femto Mega is equipped with an 8 pin sync connector interface, which enables the connection of up to 8 additional devices. Advanced use cases and requirements can be achieved by using multiple cameras.
+3 Electrical Properties
+
+3.1 Indicators
+
+Front: The indicator is ON by default while the device is operating and can be manually switched on/off
+
+through the SDK.
+
+State of Indicators
+
+Meaning
+
+Next Steps
+
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Solid White Flashing Amber
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+
+Powered ON and working correctly The device is in faulty state
+
+Use the device. TBD
+
+Rear: The power indicator indicates the connection status of power supply and data. This indicator is enabled by default and cannot be turned off.
+
+State of Indicators Solid White
+Flashing White
+
+Meaning
+Powered on and data ready Power ready, waiting for data connection
+
+Flashing Amber Insufficient power supply
+
+Next Steps
+Use the device.
+Make sure that the round power connector cable is connected to the device and to the USB power adapter. Make sure that the USB-C cable is connected to the device and to a USB 3.0 port on your PC. Connect the device to a different USB 3.0 port on the PC. On your PC, open Device Manager (Start > Control Panel > Device Manager), and verify that your PC has a supported USB 3.0 host controller. Make sure that the round power connector cable is connected to the device and to the USB power adapter. Make sure that the USB-C cable is connected to the device and to your PC.
+
+4. SDK
+Orbbec SDK is a flexible and modular platform for easy camera setup and runs on Linux/Windows with a rich set of APIs. It supports camera access, device setup and configuration, data stream reading, processing and viewing, RGB-D registration and frame synchronization.
+The functions include: Access and control of camera devices.  Control of frame synchronization and alignment.  Acquisition of point cloud data Cross-platform support.  Azure Kinect SDK Wrapper
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+ Orbbec Viewer for camera testing. Please check at orbbec3d.com for the latest SDK.
+Temperature sensor and recording
+The temperature of camera core components can be obtained, including CPU temperature, laser temperature, IR sensor temperature and IMU sensor temperature.
+DEVICE_TEMPERATURE params; uint32_t len = sizeof(DEVICE_TEMPERATURE); device->getStructuredData(OB_STRUCT_DEVICE_TEMPERATURE, &params, &len);
+5. Firmware
+5.1 Firmware Update
+Femto Mega’s firmware can be updated by the user. The device needs to be connected to a computer using the Micro USB interface. The device will enter the firmware update mode if user presses and holds the Registration reset button.
+5.2 Update Precautions
+The update tool cannot check firmware version of the current device and possible for a downgrade action, please make sure if “update” is required by checking inside the SDK.
+Ensure that data stream has been closed before updating and the USB cable is securely connected during the process. Otherwise, update may fail. Unplug the power supply and plug it back in after successful update to enable the new firmware to take effect. Disconnect the power supply if update fails. Try the update process again after reconnecting power supply.
+6 Installation Guide
+Use outside of the ambient conditions could cause the device to fail and/or function incorrectly. These ambient conditions are applicable for the environment immediately around the device under all operational conditions. When used with an external enclosure, active temperature control and/or other cooling solutions are recommended to ensure the device is maintained within these ranges. The device design features a cooling channel in between the front section and rear sleeve. When you implement the device, make sure this cooling channel is not obstructed.
+6.1 Installation Recommendations
+1. Camera is active cooled, please do not cover the venting holes of the fan.
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+2. When using external housing around the camera for dust proofing, use foam inserts or rubber gaskets between the front of the camera and the external housing.
+3. Avoid external forces applied to the camera chassis during installation process. 4. Disassembling chassis and mounting brackets voids the warranty.
+6.2 Heat Dissipation
+1. Avoid direct heat source around the camera. 2. Maximize the space inside the external housing may help lowering operating temperature. Note: For further support of housing design information, please contact Orbbec 3D at info@orbbec3d.com.
+6.3 Transmittance Requirements
+Transmittance requirements for front cover protection lens of Femto Mega 3D camera are listed as follows: 1. RGB transmittance: 835~865nm Tmin > 85%, 800~960nm Tave > 88% and 400~700nm Tave >
+85% 2. RX transmittance: 420~680nm Tmin > 97% 3. Flatness of front cover lens material: < 0.005mm. 4. Glass is recommended. Before changing the structural design of camera, the protective lens in front of the camera lens must meet the requirements above.
+6.4 Cable Design Guide
+To select a good Type-C to Type-C cable:
+1. It is recommended to use camera matching cable. 2. The USB certified cable must support both power and data. 3. When the cable needs power supply, should be less than 1m in length. If longer, Need to
+strengthen cable quality. 4. When the cable dosen’t needs power supply, should be less than 1.5m in length. If longer, Need
+to strengthen cable quality.
+6.5 Case Temperature Limit
+Plastic case: Lower than 43°C Metal case: Lower than 40°C
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+7. Safety and Handling
+1. Please follow the instructions to operate the camera. Improper operation may cause the damage of internal components.
+2. Do not drop or hit the camera with external force. 3. Do not attempt to modify the camera in any way. Modification may cause permanent damage or
+inaccuracy; 4. It is expected that the temperature of the camera may increase after using the camera for a period
+of time. 5. Do not touch the lens, or finger print may leave on the lens to affect output quality. 6. Keep the product beyond the reach of children or animals to avoid accidents. 7. If the camera is not recognized by the computer, check whether the cable meets the power/data
+transfer requirements and reinsert the USB for inspection. 8. Class 1 laser is used in this product, but it is not recommended to look at the laser for more than
+20 s to avoid discomfort.
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+7.1 Product Drawings
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+
+7. Front View
+
+8. Bottom View
+Add footer with: Company information, website
+Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+9. Side View
+8. Multi-Camera Synchronization
+Advantages of multi-camera setup o Fill in the occlusions where one camera may have blind spots o Scan objects in three dimensions. o Increase the effective frame rate to a value that's greater than 30 frames per second (FPS). o Capture multiple color images of the same scene
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+o Increase camera coverage within the space.
+
+Advanced trigger control hub and 8-pin to RJ45 adapter are available to purchase. With these optional accessories, CAT 5 (or better) rated ethernet cables can be utilized as trigger cable to help with long distance triggering setup and provide the function of switching trigger level, 1.8V, 3.3V or 5V. Recommended minimum delay setting is 160us (please follow the instruction in the SDK)
+
+Pin Pin_1 Pin_2 Pin_3
+Pin_4 Pin_5
+Pin_6
+Pin_7
+Pin_8
+
+Synchronization Interfaces of Femto Mega Camera
+
+Definitions
+
+Description
+
+GND
+
+Ground
+
+TIME_SYNC_IN Hardware timestamp Reset Signal Input
+
+VSYNC_IN
+
+Active high, used for the triggering/sync signal from primary
+
+device
+
+RESET_IN
+
+Pulse signal, power down and POR
+
+TIME_SYNC_OUT Pulse signal source, reset hardware timestamp of secondary
+
+devices.
+
+VSYNC_OUT Active high. The high level provides the triggering signal for
+
+the secondary devices.
+
+GPIO_OUT
+
+Active high. The high-level interval coincides with the IR
+
+exposure time
+
+SYNC_VCC Default Voltage is 1.8V. This voltage is sensed (3.3V or 5V)
+
+and used to set/sense the level of all signals.
+
+*The Pin sequence is shown with camera placed in rear view. The synchronization function can be realized through two connection modes: Star Topology (Sync Control Hub):
+
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+
+Daisy Chain topology:
+
+Diagram of Star Topology
+
+Diagram of Daisy Chain Topology
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+Update Logo on left Add Femto Mega in top middle Add Product Datasheet and Version number on top right
+
+9. Glossary of Terms
+
+Terms D2C Depth Depth Camera FOV
+
+Descriptions
+Depth to Color function maps each pixel on depth map to the corresponding color image according to the intrinsic and extrinsic parameters of depth camera and color camera. Depth video streams are like color video streams except each pixel has a value representing the distance away from the sensor instead of color information Includes depth imaging module and external interface only, of which the former is generally composed of infrared projector, infrared camera and depth computing processor Field of View (FoV) describes the angular extent of a given scene that is captured by a camera, which can be measured in horizontal, vertical, or diagonal
+
+I2C IR Camera IR Flood
+ISP MIPI
+PCBA SoC TBD
+
+I2C bus refers to a kind of simple bidirectional two-wire synchronous serial bus developed by Philips. It can be used for transferring information among devices connected to the bus with two wires
+Infrared camera
+IR floodlights are used tofor illuminate the environment
+Image signal processor, which is used for image post-processing
+MIPI alliance, i.e., Mobile Industry Processor Interface (MIPI) Alliance. MIPI is an open standard and specification formulated by MIPI Alliance for mobile application processors Circuit board consists of depth computing processor, memory, and other electronic devices System on Chip, integrated circuit (IC) that integrates all components of a computing system To Be Determined. In the context of this document, information will be available in a later revision.
+
+Add footer with: Company information, website Confidentiality, disclaimers Page numbers, starting from Page 2 (skip title page)at bottom right
+
+

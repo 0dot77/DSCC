@@ -28,6 +28,8 @@
     <Content Include="$(NuGetPackageRoot)microsoft.azure.kinect.bodytracking\1.1.2\content\*.onnx" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="$(NuGetPackageRoot)microsoft.azure.kinect.bodytracking\1.1.2\lib\native\amd64\release\k4abt.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="$(NuGetPackageRoot)microsoft.azure.kinect.bodytracking.onnxruntime\1.10.0\lib\native\amd64\release\*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Optional drop-in for CUDA 11.4 / cuDNN 8.2 runtime DLLs (k4abt 1.1.x Cuda mode); empty when the folder is absent. -->
+    <Content Include="..\..\third_party\cuda-runtime-win-x64\bin\**\*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(EnableK4aBodyTracking)' == 'true'">

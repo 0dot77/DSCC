@@ -1,5 +1,6 @@
 {
   "wallId": "wall-a",
+  "autoAssignDevicesOnStart": false,
   "unity": {
     "host": "127.0.0.1",
     "skeletonPort": 55010,
@@ -11,6 +12,13 @@
     "headRotationMaxDegreesPerSecond": 240,
     "headRotationMinConfidence": 0.45,
     "headRotationDeadZoneDegrees": 0.75
+  },
+  "bodyTracking": {
+    "processingModes": ["Cuda", "DirectML", "Cpu"],
+    "useLiteModel": true,
+    "maxFps": 15,
+    "gpuDeviceId": 0,
+    "previewIntervalMilliseconds": 150
   },
   "stations": [
     {
@@ -51,7 +59,134 @@
         "lostGraceSeconds": 1.5,
         "exitConfirmSeconds": 3.0,
         "minSkeletonConfidence": 0.45,
-        "footMarkerRadiusMeters": 0.45
+        "footMarkerRadiusMeters": 0.45,
+        "requireFootMarkerWhileActive": false
+      }
+    },
+    {
+      "stationId": 2,
+      "displayName": "Station 2",
+      "enabled": true,
+      "device": {
+        "deviceType": "FemtoBolt",
+        "serial": "",
+        "connection": "USB",
+        "syncRole": "Secondary",
+        "depthMode": "WFOV_2X2BINNED",
+        "fps": 15
+      },
+      "calibration": {
+        "footMarkerCenter": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 2.1
+        },
+        "trackingRoi": {
+          "minX": -0.7,
+          "maxX": 0.7,
+          "minY": 0.0,
+          "maxY": 2.4,
+          "minZ": 1.5,
+          "maxZ": 2.8
+        },
+        "unityAnchor": {
+          "x": -1.0,
+          "y": 0.0,
+          "z": 0.0,
+          "rotationY": 0.0
+        }
+      },
+      "thresholds": {
+        "enterStableSeconds": 0.4,
+        "lostGraceSeconds": 1.5,
+        "exitConfirmSeconds": 3.0,
+        "minSkeletonConfidence": 0.45,
+        "footMarkerRadiusMeters": 0.45,
+        "requireFootMarkerWhileActive": false
+      }
+    },
+    {
+      "stationId": 3,
+      "displayName": "Station 3",
+      "enabled": true,
+      "device": {
+        "deviceType": "FemtoBolt",
+        "serial": "",
+        "connection": "USB",
+        "syncRole": "Secondary",
+        "depthMode": "WFOV_2X2BINNED",
+        "fps": 15
+      },
+      "calibration": {
+        "footMarkerCenter": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 2.1
+        },
+        "trackingRoi": {
+          "minX": -0.7,
+          "maxX": 0.7,
+          "minY": 0.0,
+          "maxY": 2.4,
+          "minZ": 1.5,
+          "maxZ": 2.8
+        },
+        "unityAnchor": {
+          "x": 1.0,
+          "y": 0.0,
+          "z": 0.0,
+          "rotationY": 0.0
+        }
+      },
+      "thresholds": {
+        "enterStableSeconds": 0.4,
+        "lostGraceSeconds": 1.5,
+        "exitConfirmSeconds": 3.0,
+        "minSkeletonConfidence": 0.45,
+        "footMarkerRadiusMeters": 0.45,
+        "requireFootMarkerWhileActive": false
+      }
+    },
+    {
+      "stationId": 4,
+      "displayName": "Station 4",
+      "enabled": true,
+      "device": {
+        "deviceType": "FemtoBolt",
+        "serial": "",
+        "connection": "USB",
+        "syncRole": "Secondary",
+        "depthMode": "WFOV_2X2BINNED",
+        "fps": 15
+      },
+      "calibration": {
+        "footMarkerCenter": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 2.1
+        },
+        "trackingRoi": {
+          "minX": -0.7,
+          "maxX": 0.7,
+          "minY": 0.0,
+          "maxY": 2.4,
+          "minZ": 1.5,
+          "maxZ": 2.8
+        },
+        "unityAnchor": {
+          "x": 3.0,
+          "y": 0.0,
+          "z": 0.0,
+          "rotationY": 0.0
+        }
+      },
+      "thresholds": {
+        "enterStableSeconds": 0.4,
+        "lostGraceSeconds": 1.5,
+        "exitConfirmSeconds": 3.0,
+        "minSkeletonConfidence": 0.45,
+        "footMarkerRadiusMeters": 0.45,
+        "requireFootMarkerWhileActive": false
       }
     }
   ]

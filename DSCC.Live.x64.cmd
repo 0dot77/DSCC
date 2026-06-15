@@ -10,4 +10,4 @@ if errorlevel 1 (
     exit /b 1
 )
 
-start "" ".\src\DSCC.App.Wpf\bin\x64\Debug\net10.0-windows\DSCC.App.Wpf.exe"
+start "" ".\src\DSCC.App.Wpf\bin\x64\Debug\net10.0-windows\DSCC.App.Wpf.exe" %*

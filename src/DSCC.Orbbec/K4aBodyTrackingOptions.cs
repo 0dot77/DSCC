@@ -14,6 +14,20 @@ public sealed class K4aBodyTrackingOptions
 
     public string ProcessingMode { get; init; } = "Cpu";
 
+    /// <summary>
+    /// Absolute path to the k4abt ONNX model (e.g. the lite model). Empty keeps
+    /// the tracker default (full model).
+    /// </summary>
+    public string ModelPath { get; init; } = string.Empty;
+
+    public int GpuDeviceId { get; init; }
+
+    /// <summary>
+    /// Station ROI in depth-camera space; used to keep body selection on the
+    /// person standing inside the station when multiple people are visible.
+    /// </summary>
+    public BodySelectionRoi? BodySelectionRoi { get; init; }
+
     public string SensorOrientation { get; init; } = "Default";
 
     public OrbbecPreviewMode PreviewMode { get; init; } = OrbbecPreviewMode.Depth;

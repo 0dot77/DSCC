@@ -9,6 +9,7 @@ public sealed class HeadRotationStabilizer
         "Neck"
     };
 
+    private readonly object syncRoot = new();
     private readonly Dictionary<int, StationState> stationStates = [];
 
     public StationSkeletonFrame Apply(StationSkeletonFrame frame, HeadRotationStabilizerOptions options)
@@ -27,6 +28,14 @@ public sealed class HeadRotationStabilizer
             return frame;
         }
 
+        lock (syncRoot)
+        {
+            return ApplyCore(frame, options);
+        }
+    }
+
+    private StationSkeletonFrame ApplyCore(StationSkeletonFrame frame, HeadRotationStabilizerOptions options)
+    {
         var state = GetOrCreateState(frame.StationId);
         var changed = false;
         var joints = new JointFrameDto[frame.Joints.Length];
@@ -64,12 +73,18 @@ public sealed class HeadRotationStabilizer
 
     public void Reset()
     {
-        stationStates.Clear();
+        lock (syncRoot)
+        {
+            stationStates.Clear();
+        }
     }
 
     public void Reset(int stationId)
     {
-        stationStates.Remove(stationId);
+        lock (syncRoot)
+        {
+            stationStates.Remove(stationId);
+        }
     }
 
     private static StationSkeletonFrame CopyWithJoints(StationSkeletonFrame frame, JointFrameDto[] joints)
@@ -89,7 +104,9 @@ public sealed class HeadRotationStabilizer
             TrackingLostSeconds = frame.TrackingLostSeconds,
             PelvisLocal = frame.PelvisLocal,
             BodyRotation = frame.BodyRotation,
-            Joints = joints
+            Joints = joints,
+            AnchorPosition = frame.AnchorPosition,
+            AnchorRotationYDegrees = frame.AnchorRotationYDegrees
         };
     }
 

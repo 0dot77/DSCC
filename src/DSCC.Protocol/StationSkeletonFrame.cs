@@ -46,4 +46,17 @@ public sealed class StationSkeletonFrame
 
     [Key(13)]
     public JointFrameDto[] Joints { get; set; } = Array.Empty<JointFrameDto>();
+
+    /// <summary>
+    /// Station anchor position in Unity world space, from the station
+    /// calibration. Additive field; not affected by skeleton mirroring.
+    /// </summary>
+    [Key(14)]
+    public Vector3Dto AnchorPosition { get; set; } = Vector3Dto.Zero;
+
+    /// <summary>
+    /// Station anchor yaw in degrees, from the station calibration.
+    /// </summary>
+    [Key(15)]
+    public float AnchorRotationYDegrees { get; set; }
 }

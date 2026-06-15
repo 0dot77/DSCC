@@ -23,7 +23,11 @@ public static class SkeletonFrameTransforms
             BodyRotation = MirrorQuaternionX(frame.BodyRotation),
             Joints = frame.Joints
                 .Select(MirrorJointX)
-                .ToArray()
+                .ToArray(),
+            // The anchor is a Unity-space constant, not sensor-space data; it
+            // is not part of the mirror.
+            AnchorPosition = frame.AnchorPosition,
+            AnchorRotationYDegrees = frame.AnchorRotationYDegrees
         };
     }
 

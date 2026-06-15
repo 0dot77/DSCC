@@ -11,8 +11,13 @@ namespace DSCC.Orbbec;
 
 public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
 {
+    private static readonly JointId[] TrackedJointIds = Enum.GetValues<JointId>()
+        .Where(jointId => jointId != JointId.Count)
+        .ToArray();
+
     private readonly object syncRoot = new();
     private readonly Queue<DateTimeOffset> recentFrames = new();
+    private readonly StickyBodySelector bodySelector = new();
     private readonly K4aBodyTrackingOptions options;
     private DateTimeOffset lastTransientErrorAt = DateTimeOffset.MinValue;
     private DateTimeOffset lastPreviewAt = DateTimeOffset.MinValue;
@@ -77,11 +82,16 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
 
                 device.StartCameras(deviceConfiguration);
                 var calibration = device.GetCalibration(depthMode, colorResolution);
-                tracker = Tracker.Create(calibration, new TrackerConfiguration
+                var trackerConfiguration = TrackerConfiguration.Default;
+                trackerConfiguration.ProcessingMode = ToProcessingMode(options.ProcessingMode);
+                trackerConfiguration.SensorOrientation = ToSensorOrientation(options.SensorOrientation);
+                trackerConfiguration.GpuDeviceId = options.GpuDeviceId;
+                if (!string.IsNullOrWhiteSpace(options.ModelPath))
                 {
-                    ProcessingMode = ToProcessingMode(options.ProcessingMode),
-                    SensorOrientation = ToSensorOrientation(options.SensorOrientation)
-                });
+                    trackerConfiguration.ModelPath = options.ModelPath;
+                }
+
+                tracker = Tracker.Create(calibration, trackerConfiguration);
 
                 cancellationTokenSource = new CancellationTokenSource();
                 readTask = Task.Run(() => ReadLoopAsync(cancellationTokenSource.Token), CancellationToken.None);
@@ -132,6 +142,7 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
         {
             DisposeNativeObjects();
             recentFrames.Clear();
+            bodySelector.Reset();
         }
     }
 
@@ -302,9 +313,14 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
 
     private StationSkeletonFrame CreateSkeletonFrame(BodyTrackingFrame bodyFrame, DateTimeOffset timestamp)
     {
-        var skeleton = bodyFrame.GetBodySkeleton(SelectBodyIndex(bodyFrame));
-        var joints = Enum.GetValues<JointId>()
-            .Where(jointId => jointId != JointId.Count)
+        var bodyIndex = SelectBodyIndex(bodyFrame);
+        if (bodyIndex < 0)
+        {
+            return CreateEmptyFrame(timestamp);
+        }
+
+        var skeleton = bodyFrame.GetBodySkeleton((uint)bodyIndex);
+        var joints = TrackedJointIds
             .Select(jointId => ToJointFrameDto(jointId, skeleton.GetJoint(jointId)))
             .ToArray();
         var pelvis = skeleton.GetJoint(JointId.Pelvis);
@@ -324,25 +340,39 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
         };
     }
 
-    private static uint SelectBodyIndex(BodyTrackingFrame bodyFrame)
+    private int SelectBodyIndex(BodyTrackingFrame bodyFrame)
     {
-        var bestIndex = 0u;
-        var bestConfidence = -1.0;
-        for (uint index = 0; index < bodyFrame.NumberOfBodies; index++)
+        var bodyCount = (int)bodyFrame.NumberOfBodies;
+        if (bodyCount <= 0)
         {
-            var skeleton = bodyFrame.GetBodySkeleton(index);
-            var confidence = Enum.GetValues<JointId>()
-                .Where(jointId => jointId != JointId.Count)
-                .Average(jointId => ConfidenceToFloat(skeleton.GetJoint(jointId).ConfidenceLevel));
-
-            if (confidence > bestConfidence)
-            {
-                bestConfidence = confidence;
-                bestIndex = index;
-            }
+            return -1;
         }
 
-        return bestIndex;
+        var candidates = new BodyCandidate[bodyCount];
+        for (var index = 0; index < bodyCount; index++)
+        {
+            var skeleton = bodyFrame.GetBodySkeleton((uint)index);
+            var pelvis = skeleton.GetJoint(JointId.Pelvis).Position;
+            candidates[index] = new BodyCandidate(
+                bodyFrame.GetBodyId((uint)index),
+                AverageConfidence(skeleton),
+                pelvis.X / 1_000.0,
+                pelvis.Y / 1_000.0,
+                pelvis.Z / 1_000.0);
+        }
+
+        return bodySelector.Select(candidates, options.BodySelectionRoi);
+    }
+
+    private static double AverageConfidence(Skeleton skeleton)
+    {
+        var total = 0.0;
+        foreach (var jointId in TrackedJointIds)
+        {
+            total += ConfidenceToFloat(skeleton.GetJoint(jointId).ConfidenceLevel);
+        }
+
+        return total / TrackedJointIds.Length;
     }
 
     private static JointFrameDto ToJointFrameDto(JointId jointId, Joint joint)
@@ -389,15 +419,42 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
             throw new InvalidOperationException("No K4A-compatible Orbbec device was detected.");
         }
 
-        if (string.IsNullOrWhiteSpace(serial))
-        {
-            return SensorDevice.Open(0);
-        }
-
+        // Devices already opened by another station throw on Open; they must be
+        // skipped so every station can claim its own camera in any start order.
+        var unavailableCount = 0;
+        Exception? lastOpenError = null;
         for (var index = 0; index < deviceCount; index++)
         {
-            var candidate = SensorDevice.Open(index);
-            if (string.Equals(candidate.SerialNum, serial, StringComparison.OrdinalIgnoreCase))
+            SensorDevice? candidate = null;
+            try
+            {
+                candidate = SensorDevice.Open(index);
+            }
+            catch (Exception exception)
+            {
+                unavailableCount++;
+                lastOpenError = exception;
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(serial))
+            {
+                return candidate;
+            }
+
+            string candidateSerial;
+            try
+            {
+                candidateSerial = candidate.SerialNum;
+            }
+            catch
+            {
+                candidate.Dispose();
+                unavailableCount++;
+                continue;
+            }
+
+            if (string.Equals(candidateSerial, serial, StringComparison.OrdinalIgnoreCase))
             {
                 return candidate;
             }
@@ -405,7 +462,12 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
             candidate.Dispose();
         }
 
-        throw new InvalidOperationException($"K4A-compatible Orbbec device '{serial}' was not detected.");
+        var suffix = unavailableCount > 0
+            ? $" ({unavailableCount} of {deviceCount} device(s) were busy or unavailable)"
+            : string.Empty;
+        throw string.IsNullOrWhiteSpace(serial)
+            ? new InvalidOperationException($"No K4A-compatible Orbbec device could be opened{suffix}.", lastOpenError)
+            : new InvalidOperationException($"K4A-compatible Orbbec device '{serial}' was not detected{suffix}.", lastOpenError);
     }
 
     private static FPS ToFps(int fps)
