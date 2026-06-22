@@ -66,9 +66,17 @@ public sealed class OrbbecDeviceDiscovery : IOrbbecDeviceDiscovery
 
         if (backendMode == OrbbecBackendMode.K4AWrapper)
         {
-            throw new NotSupportedException(
-                "K4A Wrapper is reserved for Azure Kinect Body Tracking integration and is not implemented in DSCC.Orbbec yet. " +
-                "Use NativeSdkV2 for Orbbec SDK v2 device streams or Placeholder for offline development.");
+#if DSCC_K4A_BODY_TRACKING
+            var runtime = K4aBodyTrackingRuntimeProbe.Probe();
+            if (runtime.IsAvailable)
+            {
+                return new K4aWrapperDeviceDiscovery(runtime);
+            }
+
+            throw new InvalidOperationException(runtime.Status);
+#else
+            throw new PlatformNotSupportedException("K4A wrapper discovery is only available in x64 body tracking builds.");
+#endif
         }
 
         if (backendMode is OrbbecBackendMode.Auto or OrbbecBackendMode.NativeSdkV2)

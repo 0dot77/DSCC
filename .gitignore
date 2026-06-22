@@ -11,10 +11,14 @@ artifacts/
 Log/
 logs/
 *.log
+.codex-tmp/
+outputs/
+config/*.local.json.bak-*
 third_party/orbbec/downloads/
 third_party/orbbec/*.zip
 
 !third_party/orbbec/sdk-v2.8.6-win-x64/bin/
 !third_party/orbbec/sdk-v2.8.6-win-x64/bin/**
+third_party/orbbec/sdk-v2.8.6-win-x64/bin/Log/
 !third_party/orbbec/k4a-wrapper-v2.0.12-win/bin/
 !third_party/orbbec/k4a-wrapper-v2.0.12-win/bin/**

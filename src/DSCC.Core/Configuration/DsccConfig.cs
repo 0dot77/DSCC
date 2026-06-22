@@ -25,10 +25,22 @@ public sealed class DsccConfig
 public sealed class BodyTrackingConfig
 {
     /// <summary>
-    /// Tracker processing modes tried in order per station until one starts.
-    /// Valid values: Cuda, TensorRT, DirectML, Gpu, Cpu.
+    /// Tracker processing mode used per station. CUDA can be faster on a
+    /// matched NVIDIA stack, but DirectML is the safer Windows field default.
     /// </summary>
-    public List<string> ProcessingModes { get; set; } = ["Cuda", "DirectML", "Cpu"];
+    public List<string> ProcessingModes { get; set; } = ["DirectML"];
+
+    /// <summary>
+    /// Run K4ABT in the native tracker sidecar instead of loading k4abt.dll
+    /// into the WPF process. This keeps native crashes from taking down the UI.
+    /// </summary>
+    public bool UseTrackerSidecar { get; set; } = true;
+
+    /// <summary>
+    /// Optional absolute or relative path to dscc-k4abt-tracker.exe. Empty
+    /// resolves the repository artifact path.
+    /// </summary>
+    public string TrackerExecutablePath { get; set; } = string.Empty;
 
     /// <summary>
     /// Use the k4abt lite model. Strongly recommended when several trackers

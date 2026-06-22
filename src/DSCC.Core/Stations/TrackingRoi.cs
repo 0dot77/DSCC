@@ -21,8 +21,8 @@ public sealed class TrackingRoi
         double halfWidthMeters = 0.7,
         double depthBehindMeters = 1.0,
         double depthAheadMeters = 3.0,
-        double minY = 0.0,
-        double maxY = 2.4)
+        double minY = -1.2,
+        double maxY = 1.2)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(halfWidthMeters);
         ArgumentOutOfRangeException.ThrowIfNegative(depthBehindMeters);

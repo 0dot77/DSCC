@@ -93,6 +93,27 @@ public sealed class HeadRotationStabilizerTests
         Assert.Equal(wristRotation.W, wrist.RotationLocal.W);
     }
 
+    [Fact]
+    public void Apply_PreservesBodySelectionMetadata_WhenFrameIsCopied()
+    {
+        var stabilizer = new HeadRotationStabilizer();
+        var options = new HeadRotationStabilizerOptions
+        {
+            SmoothingHalfLifeSeconds = 0.0f,
+            MaxDegreesPerSecond = 30.0f,
+            MinConfidence = 0.45f,
+            DeadZoneDegrees = 0.0f
+        };
+        var first = CreateFrame(1_000_000, RotationY(0.0f), 0.9f);
+        var second = CreateFrame(1_066_667, RotationY(180.0f), 0.9f);
+
+        _ = stabilizer.Apply(first, options);
+        var actual = stabilizer.Apply(second, options);
+
+        Assert.Equal(second.BodyCount, actual.BodyCount);
+        Assert.Equal(second.SelectedBodyId, actual.SelectedBodyId);
+    }
+
     private static StationSkeletonFrame CreateFrame(
         long timestampUsec,
         QuaternionDto headRotation,
@@ -106,6 +127,8 @@ public sealed class HeadRotationStabilizerTests
             HasPlayer = true,
             State = StationStateDto.Active,
             Confidence = 0.9f,
+            BodyCount = 2,
+            SelectedBodyId = 42,
             Joints =
             [
                 new JointFrameDto

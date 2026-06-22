@@ -1503,6 +1503,7 @@
                                         </Grid>
                                         <ProgressBar Style="{StaticResource MetricBar}" Value="{Binding ElementName=StationList, Path=SelectedItem.JointCoverage, Mode=OneWay}" Maximum="1" Foreground="{StaticResource AccentBrush}" />
                                         <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.SkeletonDiagnosticSummary}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,12,0,0" />
+                                        <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.BodySelectionSummary}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                         <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,8,0,0">
                                             <Run Text="camera " Foreground="{StaticResource Ink3Brush}" />
                                             <Run Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFrameStatus, Mode=OneWay}" />
@@ -1581,10 +1582,11 @@
                                             <TextBox Text="{Binding ElementName=StationList, Path=SelectedItem.UnityRotationY, UpdateSourceTrigger=LostFocus}" />
                                         </UniformGrid>
 
-                                        <UniformGrid Columns="2" Rows="2">
+                                        <UniformGrid Columns="2" Rows="3">
                                             <Button Content="발 마커 캡처" Style="{StaticResource CommandTile}" Command="{Binding CaptureFootMarkerCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Margin="0,0,8,8" />
                                             <Button Content="ROI 자동 생성" Style="{StaticResource CommandTile}" Command="{Binding GenerateRoiCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Margin="0,0,0,8" />
-                                            <Button Content="선택 Station 적용" Style="{StaticResource CommandTile}" Foreground="{StaticResource OkBrush}" Command="{Binding ApplyStationEditorCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Margin="0,0,8,0" />
+                                            <Button Content="현재 위치로 맞춤" Style="{StaticResource CommandTile}" Command="{Binding CaptureLivePoseCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Margin="0,0,8,8" />
+                                            <Button Content="선택 Station 적용" Style="{StaticResource CommandTile}" Foreground="{StaticResource OkBrush}" Command="{Binding ApplyStationEditorCommand}" CommandParameter="{Binding ElementName=StationList, Path=SelectedItem.StationId}" Margin="0,0,0,8" />
                                             <Button Content="전체 설정 저장" Style="{StaticResource CommandTile}" Foreground="{StaticResource OkBrush}" Command="{Binding SaveConfigCommand}" />
                                         </UniformGrid>
                                     </StackPanel>

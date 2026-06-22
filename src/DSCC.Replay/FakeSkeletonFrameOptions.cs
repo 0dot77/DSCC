@@ -40,6 +40,14 @@ public sealed class FakeSkeletonFrameOptions
 
     public float ActiveSwayMeters { get; set; } = 0.18f;
 
+    public bool AnimateJoints { get; set; } = true;
+
+    public float LimbMotionMeters { get; set; } = 0.28f;
+
+    public float HeadMotionMeters { get; set; } = 0.08f;
+
+    public float MotionCyclesPerSecond { get; set; } = 0.5f;
+
     public float InsideConfidence { get; set; } = 0.92f;
 
     public float OutsideConfidence { get; set; } = 0.25f;
@@ -67,6 +75,21 @@ public sealed class FakeSkeletonFrameOptions
         if (FootMarkerRadiusMeters <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(FootMarkerRadiusMeters), "Foot marker radius must be greater than zero.");
+        }
+
+        if (LimbMotionMeters < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(LimbMotionMeters), "Limb motion must be zero or greater.");
+        }
+
+        if (HeadMotionMeters < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(HeadMotionMeters), "Head motion must be zero or greater.");
+        }
+
+        if (MotionCyclesPerSecond <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MotionCyclesPerSecond), "Motion cycles per second must be greater than zero.");
         }
 
         TrackingRoi.Validate();

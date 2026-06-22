@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\DSCC.Core\DSCC.Core.csproj" />
     <ProjectReference Include="..\..\src\DSCC.Protocol\DSCC.Protocol.csproj" />
   </ItemGroup>
 

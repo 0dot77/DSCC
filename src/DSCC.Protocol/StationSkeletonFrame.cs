@@ -59,4 +59,20 @@ public sealed class StationSkeletonFrame
     /// </summary>
     [Key(15)]
     public float AnchorRotationYDegrees { get; set; }
+
+    /// <summary>
+    /// Number of bodies reported by the body tracker for this camera frame.
+    /// This is diagnostic metadata; the frame still carries at most one
+    /// selected skeleton for the station.
+    /// </summary>
+    [Key(16)]
+    public int BodyCount { get; set; }
+
+    /// <summary>
+    /// Native body id selected for this station, or -1 when no skeleton was
+    /// selected. K4ABT body ids are tracker-local and useful for detecting
+    /// identity swaps during a run.
+    /// </summary>
+    [Key(17)]
+    public long SelectedBodyId { get; set; } = -1;
 }

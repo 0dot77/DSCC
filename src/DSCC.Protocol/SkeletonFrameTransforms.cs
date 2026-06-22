@@ -27,7 +27,9 @@ public static class SkeletonFrameTransforms
             // The anchor is a Unity-space constant, not sensor-space data; it
             // is not part of the mirror.
             AnchorPosition = frame.AnchorPosition,
-            AnchorRotationYDegrees = frame.AnchorRotationYDegrees
+            AnchorRotationYDegrees = frame.AnchorRotationYDegrees,
+            BodyCount = frame.BodyCount,
+            SelectedBodyId = frame.SelectedBodyId
         };
     }
 

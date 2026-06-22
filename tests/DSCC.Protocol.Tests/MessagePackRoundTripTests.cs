@@ -1,5 +1,6 @@
 using DSCC.Protocol;
 using MessagePack;
+using System.Text.Json;
 
 namespace DSCC.Protocol.Tests;
 
@@ -24,6 +25,8 @@ public sealed class MessagePackRoundTripTests
             BodyRotation = new QuaternionDto(0.0f, 0.2f, 0.0f, 0.98f),
             AnchorPosition = new Vector3Dto(-3.0f, 0.0f, 0.5f),
             AnchorRotationYDegrees = 90.0f,
+            BodyCount = 2,
+            SelectedBodyId = 42,
             Joints =
             [
                 new JointFrameDto
@@ -73,6 +76,132 @@ public sealed class MessagePackRoundTripTests
         Assert.Equal(source.AnchorPosition.Y, actual.AnchorPosition.Y);
         Assert.Equal(source.AnchorPosition.Z, actual.AnchorPosition.Z);
         Assert.Equal(source.AnchorRotationYDegrees, actual.AnchorRotationYDegrees);
+        Assert.Equal(source.BodyCount, actual.BodyCount);
+        Assert.Equal(source.SelectedBodyId, actual.SelectedBodyId);
+    }
+
+    [Fact]
+    public void StationSkeletonFrame_SerializesTauriCompatibleArrayPrefix()
+    {
+        StationSkeletonFrame source = new()
+        {
+            StationId = 3,
+            CameraSerial = "MEGA-003",
+            DeviceType = "FemtoMega",
+            TimestampUsec = 987654321L,
+            HasPlayer = true,
+            State = StationStateDto.Active,
+            Confidence = 0.92f,
+            IsInsideFootMarker = true,
+            IsInsideTrackingRoi = true,
+            TrackingLostSeconds = 0.0f,
+            PelvisLocal = new Vector3Dto(0.1f, 1.0f, 2.0f),
+            BodyRotation = new QuaternionDto(0.0f, 0.2f, 0.0f, 0.98f),
+            Joints =
+            [
+                new JointFrameDto
+                {
+                    Name = "Pelvis",
+                    PositionLocal = new Vector3Dto(0.1f, 1.0f, 2.0f),
+                    RotationLocal = QuaternionDto.Identity,
+                    Confidence = 0.95f
+                }
+            ],
+            AnchorPosition = new Vector3Dto(-4.0f, 0.0f, 0.5f),
+            AnchorRotationYDegrees = 15.0f,
+            BodyCount = 1,
+            SelectedBodyId = 33
+        };
+
+        byte[] payload = MessagePackSerializer.Serialize(source);
+        using JsonDocument document = JsonDocument.Parse(MessagePackSerializer.ConvertToJson(payload));
+        JsonElement fields = document.RootElement;
+
+        Assert.Equal(JsonValueKind.Array, fields.ValueKind);
+        Assert.Equal(18, fields.GetArrayLength());
+
+        Assert.Equal(ProtocolConstants.CurrentProtocolVersion, fields[0].GetInt32());
+        Assert.Equal(3, fields[1].GetInt32());
+        Assert.Equal("MEGA-003", fields[2].GetString());
+        Assert.Equal("FemtoMega", fields[3].GetString());
+        Assert.Equal(987654321L, fields[4].GetInt64());
+        Assert.True(fields[5].GetBoolean());
+        Assert.Equal((int)StationStateDto.Active, fields[6].GetInt32());
+        Assert.Equal(0.92f, fields[7].GetSingle());
+        Assert.True(fields[8].GetBoolean());
+        Assert.True(fields[9].GetBoolean());
+        Assert.Equal(0.0f, fields[10].GetSingle());
+
+        Assert.Equal(0.1f, fields[11][0].GetSingle());
+        Assert.Equal(1.0f, fields[11][1].GetSingle());
+        Assert.Equal(2.0f, fields[11][2].GetSingle());
+        Assert.Equal(0.0f, fields[12][0].GetSingle());
+        Assert.Equal(0.2f, fields[12][1].GetSingle());
+        Assert.Equal(0.0f, fields[12][2].GetSingle());
+        Assert.Equal(0.98f, fields[12][3].GetSingle());
+
+        Assert.Equal("Pelvis", fields[13][0][0].GetString());
+        Assert.Equal(0.1f, fields[13][0][1][0].GetSingle());
+        Assert.Equal(1.0f, fields[13][0][1][1].GetSingle());
+        Assert.Equal(2.0f, fields[13][0][1][2].GetSingle());
+        Assert.Equal(0.95f, fields[13][0][3].GetSingle());
+
+        Assert.Equal(-4.0f, fields[14][0].GetSingle());
+        Assert.Equal(0.0f, fields[14][1].GetSingle());
+        Assert.Equal(0.5f, fields[14][2].GetSingle());
+        Assert.Equal(15.0f, fields[15].GetSingle());
+
+        // The Tauri app reads only indices 0..15. New diagnostic metadata must
+        // stay appended after that prefix so older app builds can ignore it.
+        Assert.Equal(1, fields[16].GetInt32());
+        Assert.Equal(33L, fields[17].GetInt64());
+    }
+
+    [Fact]
+    public void StationSkeletonFrame_DeserializesLegacyPayloadWithoutBodyMetadata()
+    {
+        object[] legacyFields =
+        [
+            ProtocolConstants.CurrentProtocolVersion,
+            7,
+            "LEGACY-MEGA",
+            "FemtoMega",
+            123456789L,
+            true,
+            (int)StationStateDto.Active,
+            0.91f,
+            true,
+            true,
+            0.0f,
+            new object[] { 0.1f, 1.2f, 2.3f },
+            new object[] { 0.0f, 0.0f, 0.0f, 1.0f },
+            new object[]
+            {
+                new object[]
+                {
+                    "Pelvis",
+                    new object[] { 0.1f, 1.2f, 2.3f },
+                    new object[] { 0.0f, 0.0f, 0.0f, 1.0f },
+                    0.95f
+                }
+            },
+            new object[] { -3.0f, 0.0f, 0.5f },
+            45.0f
+        ];
+
+        byte[] payload = MessagePackSerializer.Serialize(legacyFields);
+        StationSkeletonFrame actual = MessagePackSerializer.Deserialize<StationSkeletonFrame>(payload);
+
+        Assert.Equal(7, actual.StationId);
+        Assert.Equal("LEGACY-MEGA", actual.CameraSerial);
+        Assert.True(actual.HasPlayer);
+        Assert.Equal(StationStateDto.Active, actual.State);
+        Assert.Single(actual.Joints);
+        Assert.Equal("Pelvis", actual.Joints[0].Name);
+        Assert.Equal(0.5f, actual.AnchorPosition.Z);
+        Assert.Equal(45.0f, actual.AnchorRotationYDegrees);
+        Assert.Equal(0, actual.BodyCount);
+        Assert.Equal(-1, actual.SelectedBodyId);
     }
 
     [Fact]
@@ -120,6 +249,8 @@ public sealed class MessagePackRoundTripTests
             BodyRotation = new QuaternionDto(0.1f, 0.2f, -0.3f, 0.9f),
             AnchorPosition = new Vector3Dto(-3.0f, 0.0f, 0.5f),
             AnchorRotationYDegrees = 45.0f,
+            BodyCount = 2,
+            SelectedBodyId = 77,
             Joints =
             [
                 new JointFrameDto
@@ -184,5 +315,7 @@ public sealed class MessagePackRoundTripTests
         Assert.Equal(-3.0f, actual.AnchorPosition.X);
         Assert.Equal(0.5f, actual.AnchorPosition.Z);
         Assert.Equal(45.0f, actual.AnchorRotationYDegrees);
+        Assert.Equal(source.BodyCount, actual.BodyCount);
+        Assert.Equal(source.SelectedBodyId, actual.SelectedBodyId);
     }
 }

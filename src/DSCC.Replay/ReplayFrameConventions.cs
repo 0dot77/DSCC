@@ -38,10 +38,12 @@ public static class ReplayFrameConventions
                     PositionLocal = NegateXY(joint.PositionLocal),
                     RotationLocal = joint.RotationLocal,
                     Confidence = joint.Confidence
-                })
-                .ToArray(),
+            })
+            .ToArray(),
             AnchorPosition = frame.AnchorPosition,
-            AnchorRotationYDegrees = frame.AnchorRotationYDegrees
+            AnchorRotationYDegrees = frame.AnchorRotationYDegrees,
+            BodyCount = frame.BodyCount,
+            SelectedBodyId = frame.SelectedBodyId
         };
     }
 

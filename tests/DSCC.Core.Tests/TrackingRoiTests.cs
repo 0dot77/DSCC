@@ -41,7 +41,17 @@ public sealed class TrackingRoiTests
 
         Assert.Equal(-0.7, roi.MinX);
         Assert.Equal(0.7, roi.MaxX);
+        Assert.Equal(-1.2, roi.MinY);
+        Assert.Equal(1.2, roi.MaxY);
         Assert.Equal(1.0, roi.MinZ);
         Assert.Equal(5.0, roi.MaxZ);
+    }
+
+    [Fact]
+    public void AroundFootMarker_IncludesCameraSpacePelvisAboveSensorOrigin()
+    {
+        var roi = TrackingRoi.AroundFootMarker(new Vector3Meters(0.1, 0.0, 1.4));
+
+        Assert.True(roi.Contains(new Vector3Meters(0.1, -0.13, 1.4)));
     }
 }

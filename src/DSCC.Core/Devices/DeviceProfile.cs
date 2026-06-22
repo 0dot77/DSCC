@@ -2,7 +2,9 @@ namespace DSCC.Core.Devices;
 
 public sealed class DeviceProfile
 {
-    public string DeviceType { get; set; } = "FemtoBolt";
+    public const string DefaultDeviceType = "FemtoMega";
+
+    public string DeviceType { get; set; } = DefaultDeviceType;
 
     public string Serial { get; set; } = string.Empty;
 
@@ -12,7 +14,7 @@ public sealed class DeviceProfile
 
     public string SyncRole { get; set; } = "Primary";
 
-    public string DepthMode { get; set; } = "WFOV_2X2BINNED";
+    public string DepthMode { get; set; } = "NFOV_UNBINNED";
 
     public int Fps { get; set; } = 15;
 }

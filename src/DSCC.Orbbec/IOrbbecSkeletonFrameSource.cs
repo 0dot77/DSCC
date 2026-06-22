@@ -4,6 +4,8 @@ public interface IOrbbecSkeletonFrameSource : IAsyncDisposable
 {
     event EventHandler<OrbbecSkeletonFrameArrivedEventArgs>? FrameArrived;
 
+    event EventHandler<string>? SourceStatus;
+
     event EventHandler<string>? SourceError;
 
     bool IsRunning { get; }

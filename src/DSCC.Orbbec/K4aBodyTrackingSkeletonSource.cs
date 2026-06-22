@@ -1,6 +1,4 @@
 #if DSCC_K4A_BODY_TRACKING
-using System.Reflection;
-using System.Runtime.InteropServices;
 using DSCC.Protocol;
 using Microsoft.Azure.Kinect.BodyTracking;
 using Microsoft.Azure.Kinect.Sensor;
@@ -14,6 +12,7 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
     private static readonly JointId[] TrackedJointIds = Enum.GetValues<JointId>()
         .Where(jointId => jointId != JointId.Count)
         .ToArray();
+    private static readonly SemaphoreSlim TrackerInitializationGate = new(1, 1);
 
     private readonly object syncRoot = new();
     private readonly Queue<DateTimeOffset> recentFrames = new();
@@ -24,8 +23,12 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
     private string lastTransientError = string.Empty;
     private CancellationTokenSource? cancellationTokenSource;
     private Task? readTask;
+    private Task? previewTask;
+    private Task? startTask;
+    private Task? startReadyTask;
     private SensorDevice? device;
     private Tracker? tracker;
+    private bool isStarting;
     private bool isRunning;
 
     public K4aBodyTrackingSkeletonSource(K4aBodyTrackingOptions options)
@@ -34,6 +37,8 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
     }
 
     public event EventHandler<OrbbecSkeletonFrameArrivedEventArgs>? FrameArrived;
+
+    public event EventHandler<string>? SourceStatus;
 
     public event EventHandler<string>? SourceError;
 
@@ -59,75 +64,267 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
                 return Task.CompletedTask;
             }
 
+            if (isStarting)
+            {
+                return startReadyTask ?? startTask ?? Task.CompletedTask;
+            }
+
+            var ready = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            isStarting = true;
+            startReadyTask = ready.Task;
+            startTask = Task.Run(() => StartCore(cancellationToken, ready), CancellationToken.None);
+            return ready.Task;
+        }
+    }
+
+    private void StartCore(CancellationToken cancellationToken, TaskCompletionSource<object?> ready)
+    {
+        SensorDevice? pendingDevice = null;
+        Tracker? pendingTracker = null;
+        CancellationTokenSource? pendingCancellationTokenSource = null;
+        var useStartupPreview = UsesStartupPreview(options.ProcessingMode);
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var runtime = K4aBodyTrackingRuntimeProbe.Probe();
             if (!runtime.IsAvailable)
             {
                 throw new InvalidOperationException(runtime.Status);
             }
 
-            K4aBodyTrackingNativeLoader.Configure(runtime);
+            ReportStatus("K4A body tracking runtime ready; loading Orbbec K4A wrapper");
+            K4aWrapperNativeLoader.Configure(runtime);
 
-            try
+            var depthMode = ToDepthMode(options.DepthMode);
+            var colorResolution = ColorResolution.Off;
+            var deviceConfiguration = new DeviceConfiguration
             {
-                var depthMode = ToDepthMode(options.DepthMode);
-                var colorResolution = ColorResolution.Off;
-                device = OpenDevice(options.CameraSerial);
-                var deviceConfiguration = new DeviceConfiguration
-                {
-                    CameraFPS = ToFps(options.Fps),
-                    ColorResolution = colorResolution,
-                    DepthMode = depthMode,
-                    SynchronizedImagesOnly = false
-                };
+                CameraFPS = ToFps(options.Fps),
+                ColorResolution = colorResolution,
+                DepthMode = depthMode,
+                SynchronizedImagesOnly = false
+            };
 
-                device.StartCameras(deviceConfiguration);
-                var calibration = device.GetCalibration(depthMode, colorResolution);
-                var trackerConfiguration = TrackerConfiguration.Default;
-                trackerConfiguration.ProcessingMode = ToProcessingMode(options.ProcessingMode);
-                trackerConfiguration.SensorOrientation = ToSensorOrientation(options.SensorOrientation);
-                trackerConfiguration.GpuDeviceId = options.GpuDeviceId;
-                if (!string.IsNullOrWhiteSpace(options.ModelPath))
+            ReportStatus($"Opening K4A-compatible Orbbec device {FormatSerialForStatus(options.CameraSerial)}");
+            pendingDevice = OpenDevice(options.CameraSerial);
+
+            ReportStatus($"Starting depth camera ({options.DepthMode}, {options.Fps}fps)");
+            pendingDevice.StartCameras(deviceConfiguration);
+
+            var startedDevice = pendingDevice;
+            if (useStartupPreview)
+            {
+                pendingCancellationTokenSource = new CancellationTokenSource();
+                lock (syncRoot)
                 {
-                    trackerConfiguration.ModelPath = options.ModelPath;
+                    var previewCancellationToken = pendingCancellationTokenSource.Token;
+                    device = startedDevice;
+                    cancellationTokenSource = pendingCancellationTokenSource;
+                    previewTask = Task.Run(() => PreviewLoopAsync(previewCancellationToken), CancellationToken.None);
+                    isRunning = true;
+
+                    pendingDevice = null;
+                    pendingCancellationTokenSource = null;
                 }
 
-                tracker = Tracker.Create(calibration, trackerConfiguration);
-
-                cancellationTokenSource = new CancellationTokenSource();
-                readTask = Task.Run(() => ReadLoopAsync(cancellationTokenSource.Token), CancellationToken.None);
-                isRunning = true;
-                return Task.CompletedTask;
+                ReportStatus($"Depth preview loop started while {options.ProcessingMode} body tracker initializes");
+                ready.TrySetResult(null);
             }
-            catch
+
+            ReportStatus("Reading depth camera calibration");
+            var calibration = startedDevice.GetCalibration(depthMode, colorResolution);
+            var trackerConfiguration = TrackerConfiguration.Default;
+            trackerConfiguration.ProcessingMode = ToProcessingMode(options.ProcessingMode);
+            trackerConfiguration.SensorOrientation = ToSensorOrientation(options.SensorOrientation);
+            trackerConfiguration.GpuDeviceId = options.GpuDeviceId;
+            if (!string.IsNullOrWhiteSpace(options.ModelPath))
+            {
+                trackerConfiguration.ModelPath = options.ModelPath;
+            }
+
+            ReportStatus($"Waiting for exclusive {options.ProcessingMode} body tracker initialization slot");
+            TrackerInitializationGate.Wait(cancellationToken);
+            try
+            {
+                lock (syncRoot)
+                {
+                    if (!isStarting || (useStartupPreview && !isRunning))
+                    {
+                        DisposePendingNativeObjects(pendingDevice, null, pendingCancellationTokenSource);
+                        pendingDevice = null;
+                        pendingCancellationTokenSource = null;
+                        isStarting = false;
+                        startTask = null;
+                        startReadyTask = null;
+                        return;
+                    }
+                }
+
+                ReportStatus($"Creating {options.ProcessingMode} body tracker on GPU {options.GpuDeviceId}; first tracker initialization can take a while");
+                pendingTracker = Tracker.Create(calibration, trackerConfiguration);
+            }
+            finally
+            {
+                TrackerInitializationGate.Release();
+            }
+
+            if (useStartupPreview)
+            {
+                Task? previewTaskToWait;
+                CancellationTokenSource? previewCancellationTokenSourceToDispose;
+                lock (syncRoot)
+                {
+                    if (!isStarting || !isRunning || cancellationTokenSource is null || cancellationTokenSource.IsCancellationRequested)
+                    {
+                        DisposePendingNativeObjects(null, pendingTracker, null);
+                        pendingTracker = null;
+                        isStarting = false;
+                        startTask = null;
+                        startReadyTask = null;
+                        return;
+                    }
+
+                    previewTaskToWait = previewTask;
+                    previewCancellationTokenSourceToDispose = cancellationTokenSource;
+                    cancellationTokenSource.Cancel();
+                }
+
+                try
+                {
+                    previewTaskToWait?.Wait(TimeSpan.FromSeconds(2));
+                }
+                catch (AggregateException exception) when (exception.InnerExceptions.All(inner => inner is OperationCanceledException))
+                {
+                }
+                catch (OperationCanceledException)
+                {
+                }
+
+                previewCancellationTokenSourceToDispose?.Dispose();
+
+                lock (syncRoot)
+                {
+                    previewTask = null;
+                    cancellationTokenSource = null;
+                }
+            }
+
+            lock (syncRoot)
+            {
+                if (!isStarting || (useStartupPreview && !isRunning))
+                {
+                    DisposePendingNativeObjects(pendingDevice, pendingTracker, pendingCancellationTokenSource);
+                    pendingDevice = null;
+                    pendingTracker = null;
+                    pendingCancellationTokenSource = null;
+                    isStarting = false;
+                    startTask = null;
+                    startReadyTask = null;
+                    return;
+                }
+
+                pendingCancellationTokenSource = new CancellationTokenSource();
+                cancellationTokenSource = pendingCancellationTokenSource;
+                isRunning = true;
+
+                if (!useStartupPreview)
+                {
+                    device = startedDevice;
+                }
+
+                pendingDevice = null;
+                pendingCancellationTokenSource = null;
+
+                if (cancellationTokenSource is null || cancellationTokenSource.IsCancellationRequested)
+                {
+                    DisposePendingNativeObjects(pendingDevice, pendingTracker, pendingCancellationTokenSource);
+                    pendingDevice = null;
+                    pendingTracker = null;
+                    pendingCancellationTokenSource = null;
+                    isRunning = false;
+                    isStarting = false;
+                    startTask = null;
+                    startReadyTask = null;
+                    return;
+                }
+
+                var readCancellationToken = cancellationTokenSource.Token;
+                tracker = pendingTracker;
+                readTask = Task.Run(() => ReadLoopAsync(readCancellationToken), CancellationToken.None);
+                isStarting = false;
+                startTask = null;
+                startReadyTask = null;
+
+                pendingTracker = null;
+            }
+
+            ReportStatus("K4A body tracker read loop started");
+            ready.TrySetResult(null);
+        }
+        catch (Exception exception)
+        {
+            DisposePendingNativeObjects(pendingDevice, pendingTracker, pendingCancellationTokenSource);
+
+            Task? previewTaskToWait;
+            lock (syncRoot)
+            {
+                isRunning = false;
+                isStarting = false;
+                cancellationTokenSource?.Cancel();
+                TryShutdownTracker();
+                previewTaskToWait = previewTask;
+                startTask = null;
+                startReadyTask = null;
+                recentFrames.Clear();
+            }
+
+            WaitForBackgroundTaskToStop(previewTaskToWait);
+
+            lock (syncRoot)
             {
                 DisposeNativeObjects();
-                recentFrames.Clear();
-                throw;
+                bodySelector.Reset();
+            }
+
+            if (!ready.TrySetException(exception))
+            {
+                var message = $"K4A body tracker startup failed after depth preview started: {exception.Message}";
+                ReportStatus(message);
+                SourceError?.Invoke(this, message);
             }
         }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        Task? taskToWait;
+        Task? readTaskToWait;
+        Task? previewTaskToWait;
         lock (syncRoot)
         {
-            if (!isRunning)
+            if (!isRunning && !isStarting)
             {
                 return;
             }
 
             isRunning = false;
+            isStarting = false;
             cancellationTokenSource?.Cancel();
             TryShutdownTracker();
-            taskToWait = readTask;
+            readTaskToWait = readTask;
+            previewTaskToWait = previewTask;
         }
 
-        if (taskToWait is not null)
+        var tasksToWait = new[] { readTaskToWait, previewTaskToWait }
+            .Where(task => task is not null)
+            .Cast<Task>()
+            .ToArray();
+        if (tasksToWait.Length > 0)
         {
             try
             {
-                await taskToWait.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
+                await Task.WhenAll(tasksToWait).WaitAsync(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -151,6 +348,55 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
         await StopAsync().ConfigureAwait(false);
     }
 
+    private async Task PreviewLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                SensorDevice? currentDevice;
+                lock (syncRoot)
+                {
+                    if (!isRunning || tracker is not null)
+                    {
+                        return;
+                    }
+
+                    currentDevice = device;
+                }
+
+                if (currentDevice is null)
+                {
+                    await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                using var capture = currentDevice.GetCapture(options.CaptureTimeout);
+                if (capture is null)
+                {
+                    await Task.Yield();
+                    continue;
+                }
+
+                RaiseDepthOnlyFrame(capture, OrbbecSkeletonTrackingStatus.InitializingTrackerPreviewOnly(options.ProcessingMode));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception) when (IsTimeoutException(exception))
+            {
+                ReportTransientError(FriendlyTimeoutMessage(exception.Message));
+                await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                SourceError?.Invoke(this, exception.Message);
+                await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     private async Task ReadLoopAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -160,27 +406,41 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
                 var currentDevice = device ?? throw new InvalidOperationException("K4A device is not open.");
                 var currentTracker = tracker ?? throw new InvalidOperationException("K4A body tracker is not open.");
 
-                using var capture = currentDevice.GetCapture(options.CaptureTimeout);
-                if (capture is null)
+                Capture? capture = null;
+                try
                 {
-                    await Task.Yield();
-                    continue;
-                }
+                    capture = currentDevice.GetCapture(options.CaptureTimeout);
+                    if (capture is null)
+                    {
+                        await Task.Yield();
+                        continue;
+                    }
 
-                if (!TryEnqueueCapture(currentTracker, capture))
+                    var depth = capture.Depth;
+                    var depthWidth = depth?.WidthPixels ?? 0;
+                    var depthHeight = depth?.HeightPixels ?? 0;
+                    if (!TryEnqueueCapture(currentTracker, capture))
+                    {
+                        RaiseDepthOnlyFrame(depthWidth, depthHeight, OrbbecSkeletonTrackingStatus.TrackerQueueBusyDroppingFrame);
+                        continue;
+                    }
+
+                    capture.Dispose();
+                    capture = null;
+
+                    using var bodyFrame = currentTracker.PopResult(options.ResultTimeout, throwOnTimeout: false);
+                    if (bodyFrame is null)
+                    {
+                        RaiseDepthOnlyFrame(depthWidth, depthHeight, OrbbecSkeletonTrackingStatus.WaitingForSkeletonResult);
+                        continue;
+                    }
+
+                    RaiseFrame(bodyFrame, depthWidth, depthHeight);
+                }
+                finally
                 {
-                    RaiseDepthOnlyFrame(capture, "tracker queue busy; dropping camera frame");
-                    continue;
+                    capture?.Dispose();
                 }
-
-                using var bodyFrame = currentTracker.PopResult(options.ResultTimeout, throwOnTimeout: false);
-                if (bodyFrame is null)
-                {
-                    RaiseDepthOnlyFrame(capture, "waiting for skeleton result");
-                    continue;
-                }
-
-                RaiseFrame(bodyFrame, capture);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -208,7 +468,7 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
         }
         catch (Exception exception) when (IsTimeoutException(exception))
         {
-            ReportTransientError("tracker queue busy; dropping camera frame");
+            ReportTransientError(OrbbecSkeletonTrackingStatus.TrackerQueueBusyDroppingFrame);
             return false;
         }
     }
@@ -216,12 +476,26 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
     private void RaiseDepthOnlyFrame(Capture capture, string trackingStatus)
     {
         var now = DateTimeOffset.UtcNow;
-        var estimatedFps = TrackFps(now);
         var depth = capture.Depth;
         var depthWidth = depth?.WidthPixels ?? 0;
         var depthHeight = depth?.HeightPixels ?? 0;
         var preview = CreatePreview(capture, now);
+        RaiseDepthOnlyFrame(now, depthWidth, depthHeight, trackingStatus, preview);
+    }
 
+    private void RaiseDepthOnlyFrame(int depthWidth, int depthHeight, string trackingStatus)
+    {
+        RaiseDepthOnlyFrame(DateTimeOffset.UtcNow, depthWidth, depthHeight, trackingStatus, preview: null);
+    }
+
+    private void RaiseDepthOnlyFrame(
+        DateTimeOffset now,
+        int depthWidth,
+        int depthHeight,
+        string trackingStatus,
+        DepthPreviewFrame? preview)
+    {
+        var estimatedFps = TrackFps(now);
         FrameArrived?.Invoke(this, new OrbbecSkeletonFrameArrivedEventArgs
         {
             Frame = CreateEmptyFrame(now),
@@ -235,14 +509,10 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
         });
     }
 
-    private void RaiseFrame(BodyTrackingFrame bodyFrame, Capture capture)
+    private void RaiseFrame(BodyTrackingFrame bodyFrame, int depthWidth, int depthHeight)
     {
         var now = DateTimeOffset.UtcNow;
         var estimatedFps = TrackFps(now);
-        var depth = capture.Depth;
-        var depthWidth = depth?.WidthPixels ?? 0;
-        var depthHeight = depth?.HeightPixels ?? 0;
-        var preview = CreatePreview(capture, now);
         var frame = bodyFrame.NumberOfBodies == 0
             ? CreateEmptyFrame(now)
             : CreateSkeletonFrame(bodyFrame, now);
@@ -256,7 +526,7 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
             EstimatedFps = estimatedFps,
             TrackingStatus = bodyFrame.NumberOfBodies == 0 ? "no body" : null,
             PreviewMode = options.PreviewMode,
-            DepthPreview = preview
+            DepthPreview = null
         });
     }
 
@@ -307,7 +577,9 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
             Confidence = 0.0f,
             PelvisLocal = Vector3Dto.Zero,
             BodyRotation = QuaternionDto.Identity,
-            Joints = Array.Empty<JointFrameDto>()
+            Joints = Array.Empty<JointFrameDto>(),
+            BodyCount = 0,
+            SelectedBodyId = -1
         };
     }
 
@@ -320,6 +592,7 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
         }
 
         var skeleton = bodyFrame.GetBodySkeleton((uint)bodyIndex);
+        var selectedBodyId = bodyFrame.GetBodyId((uint)bodyIndex);
         var joints = TrackedJointIds
             .Select(jointId => ToJointFrameDto(jointId, skeleton.GetJoint(jointId)))
             .ToArray();
@@ -336,7 +609,9 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
             Confidence = joints.Length == 0 ? 0.0f : joints.Average(joint => joint.Confidence),
             PelvisLocal = ToVector3Dto(pelvis.Position),
             BodyRotation = ToQuaternionDto(pelvis.Quaternion),
-            Joints = joints
+            Joints = joints,
+            BodyCount = (int)bodyFrame.NumberOfBodies,
+            SelectedBodyId = selectedBodyId
         };
     }
 
@@ -500,7 +775,14 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
     {
         return Enum.TryParse<TrackerProcessingMode>(processingMode, ignoreCase: true, out var parsed)
             ? parsed
-            : TrackerProcessingMode.Cpu;
+            : TrackerProcessingMode.Cuda;
+    }
+
+    private static bool UsesStartupPreview(string processingMode)
+    {
+        return processingMode.Equals("Cuda", StringComparison.OrdinalIgnoreCase) ||
+               processingMode.Equals("TensorRT", StringComparison.OrdinalIgnoreCase) ||
+               processingMode.Equals("Gpu", StringComparison.OrdinalIgnoreCase);
     }
 
     private static SensorOrientation ToSensorOrientation(string sensorOrientation)
@@ -560,12 +842,12 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
     {
         if (message.Contains("capture to be enqueued", StringComparison.OrdinalIgnoreCase))
         {
-            return "tracker queue busy; dropping camera frame";
+            return OrbbecSkeletonTrackingStatus.TrackerQueueBusyDroppingFrame;
         }
 
         if (message.Contains("K4A_WAIT_RESULT_FAILED", StringComparison.OrdinalIgnoreCase))
         {
-            return "waiting for skeleton result";
+            return OrbbecSkeletonTrackingStatus.WaitingForSkeletonResult;
         }
 
         if (message.Contains("capture", StringComparison.OrdinalIgnoreCase))
@@ -576,6 +858,11 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
         return string.IsNullOrWhiteSpace(message) ? "body tracking timeout" : message;
     }
 
+    private void ReportStatus(string message)
+    {
+        SourceStatus?.Invoke(this, message);
+    }
+
     private void TryShutdownTracker()
     {
         try
@@ -583,6 +870,25 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
             tracker?.Shutdown();
         }
         catch
+        {
+        }
+    }
+
+    private static void WaitForBackgroundTaskToStop(Task? task)
+    {
+        if (task is null)
+        {
+            return;
+        }
+
+        try
+        {
+            task.Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (AggregateException exception) when (exception.InnerExceptions.All(inner => inner is OperationCanceledException))
+        {
+        }
+        catch (OperationCanceledException)
         {
         }
     }
@@ -609,85 +915,44 @@ public sealed class K4aBodyTrackingSkeletonSource : IOrbbecSkeletonFrameSource
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = null;
         readTask = null;
+        previewTask = null;
     }
 
-    private static class K4aBodyTrackingNativeLoader
+    private static void DisposePendingNativeObjects(
+        SensorDevice? pendingDevice,
+        Tracker? pendingTracker,
+        CancellationTokenSource? pendingCancellationTokenSource)
     {
-        private static int configured;
-        private static string? wrapperDirectory;
-        private static IntPtr k4aHandle;
-        private static IntPtr k4aRecordHandle;
-
-        public static void Configure(K4aBodyTrackingRuntimeInfo runtime)
+        try
         {
-            if (Interlocked.Exchange(ref configured, 1) == 1)
-            {
-                return;
-            }
-
-            wrapperDirectory = runtime.OrbbecK4aWrapperDirectory;
-            if (!string.IsNullOrWhiteSpace(wrapperDirectory))
-            {
-                var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-                if (!path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Contains(wrapperDirectory, StringComparer.OrdinalIgnoreCase))
-                {
-                    Environment.SetEnvironmentVariable("PATH", wrapperDirectory + Path.PathSeparator + path);
-                }
-
-                k4aHandle = Preload(Path.Combine(wrapperDirectory, "k4a.dll"));
-                k4aRecordHandle = Preload(Path.Combine(wrapperDirectory, "k4arecord.dll"));
-            }
-
-            TrySetResolver(typeof(SensorDevice).Assembly, ResolveSensorNativeLibrary);
+            pendingTracker?.Shutdown();
+        }
+        catch
+        {
         }
 
-        private static void TrySetResolver(Assembly assembly, DllImportResolver resolver)
+        pendingTracker?.Dispose();
+
+        if (pendingDevice is not null)
         {
             try
             {
-                NativeLibrary.SetDllImportResolver(assembly, resolver);
+                pendingDevice.StopCameras();
             }
-            catch (InvalidOperationException)
+            catch
             {
-                // A resolver can be registered only once per assembly.
             }
+
+            pendingDevice.Dispose();
         }
 
-        private static IntPtr ResolveSensorNativeLibrary(
-            string libraryName,
-            Assembly assembly,
-            DllImportSearchPath? searchPath)
-        {
-            if (string.IsNullOrWhiteSpace(wrapperDirectory))
-            {
-                return IntPtr.Zero;
-            }
-
-            var normalized = Path.GetFileNameWithoutExtension(libraryName);
-            var fileName = normalized switch
-            {
-                "k4a" => "k4a.dll",
-                "k4arecord" => "k4arecord.dll",
-                _ => null
-            };
-            if (fileName is null)
-            {
-                return IntPtr.Zero;
-            }
-
-            var path = Path.Combine(wrapperDirectory, fileName);
-            return File.Exists(path) && NativeLibrary.TryLoad(path, out var handle)
-                ? handle
-                : IntPtr.Zero;
-        }
-
-        private static IntPtr Preload(string path)
-        {
-            return File.Exists(path) && NativeLibrary.TryLoad(path, out var handle)
-                ? handle
-                : IntPtr.Zero;
-        }
+        pendingCancellationTokenSource?.Dispose();
     }
+
+    private static string FormatSerialForStatus(string serial)
+    {
+        return string.IsNullOrWhiteSpace(serial) ? "(first available)" : serial;
+    }
+
 }
 #endif

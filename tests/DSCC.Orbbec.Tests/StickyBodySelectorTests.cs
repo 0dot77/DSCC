@@ -43,7 +43,7 @@ public sealed class StickyBodySelectorTests
     }
 
     [Fact]
-    public void Select_PrefersBodyInsideRoi_OverTrackedBodyThatLeftRoi()
+    public void Select_KeepsTrackedBodyBriefly_WhenReplacementIsInsideRoi()
     {
         var selector = new StickyBodySelector();
         selector.Select(new[] { new BodyCandidate(1u, 0.66, 0.0, 1.0, 2.0) }, Roi);
@@ -54,8 +54,28 @@ public sealed class StickyBodySelectorTests
             new BodyCandidate(2u, 0.66, 0.0, 1.0, 2.1)   // someone is standing in the station
         };
 
+        Assert.Equal(0, selector.Select(candidates, Roi));
+        Assert.Equal(1u, selector.TrackedBodyId);
+        Assert.Equal(1, selector.TrackedBodyOutsideRoiFrames);
+    }
+
+    [Fact]
+    public void Select_PrefersBodyInsideRoi_AfterTrackedBodyStaysOutsideRoi()
+    {
+        var selector = new StickyBodySelector(outsideRoiGraceFrames: 2);
+        selector.Select(new[] { new BodyCandidate(1u, 0.66, 0.0, 1.0, 2.0) }, Roi);
+
+        var candidates = new[]
+        {
+            new BodyCandidate(1u, 0.66, 1.8, 1.0, 2.0),
+            new BodyCandidate(2u, 0.66, 0.0, 1.0, 2.1)
+        };
+
+        Assert.Equal(0, selector.Select(candidates, Roi));
+        Assert.Equal(0, selector.Select(candidates, Roi));
         Assert.Equal(1, selector.Select(candidates, Roi));
         Assert.Equal(2u, selector.TrackedBodyId);
+        Assert.Equal(0, selector.TrackedBodyOutsideRoiFrames);
     }
 
     [Fact]
@@ -127,9 +147,11 @@ public sealed class StickyBodySelectorTests
     {
         var selector = new StickyBodySelector();
         selector.Select(new[] { new BodyCandidate(1u, 0.66, 0.0, 1.0, 2.0) }, Roi);
+        selector.Select(new[] { new BodyCandidate(1u, 0.66, 1.8, 1.0, 2.0) }, Roi);
 
         selector.Reset();
 
         Assert.Null(selector.TrackedBodyId);
+        Assert.Equal(0, selector.TrackedBodyOutsideRoiFrames);
     }
 }

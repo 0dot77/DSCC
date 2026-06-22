@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -8,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DSCC.App.Wpf.Services;
 using DSCC.Core.Configuration;
+using DSCC.Core.Diagnostics;
 using DSCC.Core.Stations;
 using DSCC.Orbbec;
 using DSCC.Protocol;
@@ -18,12 +20,18 @@ namespace DSCC.App.Wpf.ViewModels;
 
 public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 {
+    private static readonly TimeSpan RequiredSkeletonActivationTimeout = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan MultipleBodyWarningInterval = TimeSpan.FromSeconds(10);
+
     private readonly DsccConfigStore _configStore = new();
     private readonly ConcurrentDictionary<int, StationRuntime> _stationRuntimes = new();
     private readonly ConcurrentDictionary<int, StationFrameUiUpdate> _pendingStationUpdates = new();
     private int _stationUiFlushScheduled;
     private readonly Dictionary<string, OrbbecDeviceInfo> _discoveredOrbbecDevices = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<OrbbecStreamRuntime> _orbbecStreams = [];
+    private readonly HashSet<int> _activeSkeletonStationIds = [];
+    private readonly HashSet<int> _fatalSkeletonStationIds = [];
+    private readonly Dictionary<int, DateTimeOffset> _lastMultipleBodyWarningAt = [];
     private readonly SemaphoreSlim _liveSenderGate = new(1, 1);
     private readonly HeadRotationStabilizer _headRotationStabilizer = new();
     private readonly IConfigFileDialogService _configFileDialogService;
@@ -46,8 +54,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private double _headRotationDeadZoneDegrees = 0.75;
     private bool _isReplayRunning;
     private bool _isOrbbecLiveRunning;
+    private bool _isStoppingRequiredSkeletonLiveAfterError;
     private bool _isLoadingConfig;
     private bool _hasUnsavedChanges;
+    private int _liveStartGeneration;
     private int _sendFps;
     private long _packetsSent;
     private long _packetErrors;
@@ -82,6 +92,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         SendEventCommand = new AsyncRelayCommand<string>(SendEventAsync);
         ApplyStationEditorCommand = new RelayCommand<int>(ApplyStationEditor);
         CaptureFootMarkerCommand = new RelayCommand<int>(CaptureFootMarker);
+        CaptureLivePoseCommand = new RelayCommand<int>(CaptureLivePoseCalibration);
         GenerateRoiCommand = new RelayCommand<int>(GenerateRoi);
         ForceEnterCommand = new RelayCommand<int>(stationId => ForceStationState(stationId, StationState.Active));
         ForceExitCommand = new RelayCommand<int>(stationId => ForceStationState(stationId, StationState.Exited));
@@ -160,6 +171,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand<int> ApplyStationEditorCommand { get; }
 
     public IRelayCommand<int> CaptureFootMarkerCommand { get; }
+
+    public IRelayCommand<int> CaptureLivePoseCommand { get; }
 
     public IRelayCommand<int> GenerateRoiCommand { get; }
 
@@ -611,10 +624,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void ApplyStationEditor(int stationId)
     {
-        ApplyStationEditor(stationId, logChange: true);
+        ApplyStationEditor(stationId, logChange: true, restartLive: true);
     }
 
-    private void ApplyStationEditor(int stationId, bool logChange)
+    private void ApplyStationEditor(int stationId, bool logChange, bool restartLive = false)
     {
         if (!_stationRuntimes.TryGetValue(stationId, out var runtime))
         {
@@ -636,6 +649,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             HasUnsavedChanges = true;
             AddLog("info", $"Applied editor values to station {stationId}");
         }
+
+        if (restartLive && IsOrbbecLiveRunning)
+        {
+            _ = RestartOrbbecLiveForCalibrationAsync(stationId);
+        }
     }
 
     private void CaptureFootMarker(int stationId)
@@ -655,8 +673,58 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         row.FootMarkerX = row.FootX;
         row.FootMarkerY = 0.0;
         row.FootMarkerZ = row.FootZ;
-        ApplyStationEditor(stationId);
+        ApplyStationEditor(stationId, logChange: true, restartLive: false);
         AddLog("info", $"Captured station {stationId} foot marker at X {row.FootMarkerX:0.000}, Z {row.FootMarkerZ:0.000}");
+    }
+
+    private void CaptureLivePoseCalibration(int stationId)
+    {
+        var row = Stations.FirstOrDefault(station => station.StationId == stationId);
+        if (row is null)
+        {
+            return;
+        }
+
+        if (row.LastFrameTime == "-")
+        {
+            AddLog("warn", $"Station {stationId} has no live frame to capture calibration from");
+            return;
+        }
+
+        var footX = row.FootX;
+        var footZ = row.FootZ;
+        if (Math.Abs(footX) < 0.001 && Math.Abs(footZ) < 0.001)
+        {
+            footX = row.PelvisX;
+            footZ = row.PelvisZ;
+        }
+
+        row.FootMarkerX = footX;
+        row.FootMarkerY = 0.0;
+        row.FootMarkerZ = footZ;
+        row.FootMarkerRadiusMeters = Math.Max(row.FootMarkerRadiusMeters, 0.60);
+
+        var minY = Math.Min(-1.2, row.PelvisY - 0.5);
+        var maxY = Math.Max(1.2, row.PelvisY + 0.5);
+        var roi = DSCC.Core.Stations.TrackingRoi.AroundFootMarker(
+            new Vector3Meters(footX, 0.0, footZ),
+            halfWidthMeters: 0.85,
+            depthBehindMeters: 0.9,
+            depthAheadMeters: 1.8,
+            minY: minY,
+            maxY: maxY);
+
+        row.RoiMinX = Math.Min(roi.MinX, row.PelvisX - 0.45);
+        row.RoiMaxX = Math.Max(roi.MaxX, row.PelvisX + 0.45);
+        row.RoiMinY = roi.MinY;
+        row.RoiMaxY = roi.MaxY;
+        row.RoiMinZ = Math.Min(roi.MinZ, row.PelvisZ - 0.6);
+        row.RoiMaxZ = Math.Max(roi.MaxZ, row.PelvisZ + 1.2);
+
+        ApplyStationEditor(stationId);
+        AddLog(
+            "info",
+            $"Captured station {stationId} live pose calibration: marker X {row.FootMarkerX:0.000}, Z {row.FootMarkerZ:0.000}; ROI X {row.RoiMinX:0.000}..{row.RoiMaxX:0.000}, Y {row.RoiMinY:0.000}..{row.RoiMaxY:0.000}, Z {row.RoiMinZ:0.000}..{row.RoiMaxZ:0.000}");
     }
 
     private void GenerateRoi(int stationId)
@@ -678,24 +746,53 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         AddLog("info", $"Generated station {stationId} ROI around foot marker");
     }
 
+    private async Task RestartOrbbecLiveForCalibrationAsync(int stationId)
+    {
+        try
+        {
+            AddLog("info", $"Restarting Orbbec live input so station {stationId} calibration reaches the tracker ROI");
+            await StopOrbbecLiveAsync().ConfigureAwait(true);
+            await StartOrbbecLiveAsync().ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            AddLog("error", $"Orbbec calibration restart failed for station {stationId}: {exception.Message}");
+        }
+    }
+
     private async Task RefreshOrbbecDevicesAsync()
     {
         try
         {
+            var useK4aWrapperDiscovery = ShouldUseK4aWrapperDiscovery();
             var discovery = new OrbbecDeviceDiscovery(options: new OrbbecDeviceDiscoveryOptions
             {
-                BackendMode = OrbbecBackendMode.NativeSdkV2,
+                BackendMode = useK4aWrapperDiscovery ? OrbbecBackendMode.K4AWrapper : OrbbecBackendMode.NativeSdkV2,
                 AllowPlaceholderFallback = false
             });
 
-            var runtime = discovery.ProbeRuntime();
-            if (!runtime.IsAvailable)
+            if (useK4aWrapperDiscovery)
             {
-                AddLog("warn", "Orbbec SDK runtime is not available in the app output folder");
-                return;
-            }
+                var k4aRuntime = K4aBodyTrackingRuntimeProbe.Probe();
+                if (!k4aRuntime.IsAvailable)
+                {
+                    AddLog("warn", k4aRuntime.Status);
+                    return;
+                }
 
-            AddLog("info", $"Orbbec SDK loaded: native {runtime.DetectedNativeSdkVersion ?? "unknown"}, C# wrapper {runtime.DetectedManagedWrapperVersion ?? "unknown"}");
+                AddLog("info", $"K4A wrapper loaded: wrapper {k4aRuntime.OfficialK4aWrapperVersion}, body package {k4aRuntime.OfficialBodyTrackingPackageVersion}");
+            }
+            else
+            {
+                var runtime = discovery.ProbeRuntime();
+                if (!runtime.IsAvailable)
+                {
+                    AddLog("warn", "Orbbec SDK runtime is not available in the app output folder");
+                    return;
+                }
+
+                AddLog("info", $"Orbbec SDK loaded: native {runtime.DetectedNativeSdkVersion ?? "unknown"}, C# wrapper {runtime.DetectedManagedWrapperVersion ?? "unknown"}");
+            }
 
             var discoveredDevices = await discovery.DiscoverAsync();
             foreach (var device in discoveredDevices)
@@ -712,7 +809,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
             if (discoveredDevices.Count == 0)
             {
-                AddLog("warn", "Orbbec SDK loaded but no Femto devices were discovered");
+                AddLog("warn", $"{(useK4aWrapperDiscovery ? "K4A wrapper" : "Orbbec SDK")} loaded but no Femto devices were discovered");
             }
             else
             {
@@ -723,6 +820,12 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             AddLog("error", $"Orbbec discovery failed: {exception.Message}");
         }
+    }
+
+    private bool ShouldUseK4aWrapperDiscovery()
+    {
+        return PreviewMode != OrbbecPreviewMode.Color &&
+               GetConfiguredBodyTrackingProcessingModes(_config.BodyTracking ?? new BodyTrackingConfig()).Count > 0;
     }
 
     private void UpsertOrbbecDevice(OrbbecDeviceInfo deviceInfo)
@@ -740,7 +843,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         var configuredStation = _config.Stations.FirstOrDefault(station =>
             string.Equals(station.Device.Serial, deviceInfo.Serial, StringComparison.OrdinalIgnoreCase));
 
-        var firmwareStatus = OrbbecFirmwarePolicy.IsRecommendedOrNewer(deviceInfo)
+        var firmwareStatus = string.IsNullOrWhiteSpace(deviceInfo.FirmwareVersion)
+            ? "connected"
+            : OrbbecFirmwarePolicy.IsRecommendedOrNewer(deviceInfo)
             ? "connected"
             : $"connected; FW {deviceInfo.FirmwareVersion ?? "unknown"} < recommended {OrbbecFirmwarePolicy.RecommendedFirmwareFor(deviceInfo.DeviceType)}";
 
@@ -786,8 +891,18 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         if (stationId > 0 && _stationRuntimes.TryGetValue(stationId, out var target))
         {
+            if (_discoveredOrbbecDevices.TryGetValue(serial, out var deviceInfo) &&
+                !IsDeviceAssignableToStation(target, deviceInfo))
+            {
+                AddLog(
+                    "warn",
+                    $"Refusing to pin {serial} ({deviceInfo.DeviceType}) to station {stationId}; station expects {target.Station.DeviceType}");
+                SyncDeviceAssignments();
+                return;
+            }
+
             target.Row.AssignedCameraSerial = serial;
-            if (_discoveredOrbbecDevices.TryGetValue(serial, out var deviceInfo))
+            if (_discoveredOrbbecDevices.TryGetValue(serial, out deviceInfo))
             {
                 target.Row.DeviceType = deviceInfo.DeviceType.ToString();
             }
@@ -914,22 +1029,30 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         // Devices already pinned to a station must not be handed out again.
         var assignedSerials = CollectAssignedSerials();
-        var freeDevices = new Queue<OrbbecDeviceInfo>(_discoveredOrbbecDevices.Values
+        var freeDevices = _discoveredOrbbecDevices.Values
             .OrderBy(device => device.Serial)
-            .Where(device => !string.IsNullOrWhiteSpace(device.Serial) && !assignedSerials.Contains(device.Serial)));
+            .Where(device => !string.IsNullOrWhiteSpace(device.Serial) && !assignedSerials.Contains(device.Serial))
+            .ToList();
 
         foreach (var runtime in _stationRuntimes.Values.OrderBy(runtime => runtime.Station.StationId))
         {
+            if (!runtime.Station.Enabled)
+            {
+                continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(runtime.Row.AssignedCameraSerial))
             {
                 continue;
             }
 
-            if (!freeDevices.TryDequeue(out var device))
+            var device = freeDevices.FirstOrDefault(candidate => IsDeviceAssignableToStation(runtime, candidate));
+            if (device is null)
             {
-                break;
+                continue;
             }
 
+            freeDevices.Remove(device);
             runtime.Row.AssignedCameraSerial = device.Serial;
             runtime.Row.DeviceType = device.DeviceType.ToString();
             ApplyStationEditor(runtime.Station.StationId);
@@ -937,6 +1060,35 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         SyncDeviceAssignments();
         AddLog("info", "Auto-assigned discovered Orbbec devices to empty stations");
+    }
+
+    private static bool IsDeviceAssignableToStation(StationRuntime runtime, OrbbecDeviceInfo deviceInfo)
+    {
+        return OrbbecDeviceAssignmentPolicy.IsCompatibleWithStationType(deviceInfo, runtime.Station.DeviceType);
+    }
+
+    private bool ValidateLiveStationPins()
+    {
+        var pins = _stationRuntimes.Values.Select(runtime => new OrbbecStationCameraPin(
+            runtime.Station.StationId,
+            runtime.Station.Enabled,
+            runtime.Station.AssignedCameraSerial,
+            runtime.Station.DeviceType));
+        var failures = OrbbecLiveStationPinPolicy.ValidateRequiredPins(pins, _discoveredOrbbecDevices.Values);
+
+        if (failures.Count == 0)
+        {
+            return true;
+        }
+
+        LiveInputStatus = "Station camera pinning is incomplete";
+        foreach (var failure in failures)
+        {
+            AddLog("error", $"Cannot start Orbbec live input: {failure}");
+        }
+
+        AddLog("error", "Pin all field cameras with Devices panel or tools\\DsccDeviceList --pin-config before starting live skeleton tracking");
+        return false;
     }
 
     private void Navigate(object? parameter)
@@ -978,6 +1130,12 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             StopReplay();
         }
 
+        _activeSkeletonStationIds.Clear();
+        _fatalSkeletonStationIds.Clear();
+        _lastMultipleBodyWarningAt.Clear();
+        _isStoppingRequiredSkeletonLiveAfterError = false;
+        var liveStartGeneration = ++_liveStartGeneration;
+
         await RefreshOrbbecDevicesAsync().ConfigureAwait(true);
 
         if (_discoveredOrbbecDevices.Count == 0)
@@ -995,11 +1153,21 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             var hasUnassignedDevice = _discoveredOrbbecDevices.Values.Any(device =>
                 !string.IsNullOrWhiteSpace(device.Serial) && !assignedSerials.Contains(device.Serial));
             var hasEmptyStation = _stationRuntimes.Values.Any(runtime =>
+                runtime.Station.Enabled &&
                 string.IsNullOrWhiteSpace(runtime.Station.AssignedCameraSerial));
             if (hasUnassignedDevice && hasEmptyStation)
             {
                 AutoAssignDiscoveredDevices();
             }
+        }
+
+        var bodyTracking = _config.BodyTracking ?? new BodyTrackingConfig();
+        var processingModes = GetConfiguredBodyTrackingProcessingModes(bodyTracking);
+        if (PreviewMode != OrbbecPreviewMode.Color &&
+            processingModes.Count > 0 &&
+            !ValidateLiveStationPins())
+        {
+            return;
         }
 
         _headRotationStabilizer.Reset();
@@ -1016,10 +1184,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             _liveSkeletonSender = new UdpMessagePackSender(UnityHost, SkeletonPort);
         }
 
-        var bodyTracking = _config.BodyTracking ?? new BodyTrackingConfig();
-        var processingModes = bodyTracking.ProcessingModes is { Count: > 0 }
-            ? bodyTracking.ProcessingModes
-            : ["DirectML", "Cpu"];
         var previewInterval = TimeSpan.FromMilliseconds(Math.Max(0.0, bodyTracking.PreviewIntervalMilliseconds));
         var modelPath = string.Empty;
         if (canUseBodyTracking && bodyTracking.UseLiteModel)
@@ -1034,15 +1198,36 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         foreach (var runtime in _stationRuntimes.Values.OrderBy(runtime => runtime.Station.StationId))
         {
+            if (!runtime.Station.Enabled)
+            {
+                continue;
+            }
+
             var serial = runtime.Station.AssignedCameraSerial;
             if (string.IsNullOrWhiteSpace(serial) || !_discoveredOrbbecDevices.TryGetValue(serial, out var deviceInfo))
             {
                 continue;
             }
 
+            if (!IsDeviceAssignableToStation(runtime, deviceInfo))
+            {
+                AddLog(
+                    "error",
+                    $"Station {runtime.Station.StationId} expects {runtime.Station.DeviceType}; refusing to start {serial} ({deviceInfo.DeviceType})");
+                continue;
+            }
+
             if (canUseBodyTracking &&
                 await TryStartBodyTrackingChainAsync(runtime, deviceInfo, processingModes, modelPath, previewInterval).ConfigureAwait(true))
             {
+                continue;
+            }
+
+            if (PreviewMode != OrbbecPreviewMode.Color)
+            {
+                AddLog(
+                    "error",
+                    $"K4A body tracking is required for station {runtime.Station.StationId}; depth fallback stream is disabled");
                 continue;
             }
 
@@ -1090,6 +1275,34 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         IsOrbbecLiveRunning = _orbbecStreams.Count > 0;
         var skeletonStreamCount = _orbbecStreams.Count(stream => stream.SkeletonSource is not null);
         var depthStreamCount = _orbbecStreams.Count(stream => stream.Source is not null);
+        if (PreviewMode != OrbbecPreviewMode.Color && processingModes.Count > 0)
+        {
+            var requiredStationIds = GetRequiredSkeletonStationIds();
+            var sourceSkeletonStationIds = _orbbecStreams
+                .Where(stream => stream.SkeletonSource is not null)
+                .Select(stream => stream.StationId)
+                .ToHashSet();
+            if (sourceSkeletonStationIds.Count != requiredStationIds.Length)
+            {
+                var missingStationIds = requiredStationIds
+                    .Where(stationId => !sourceSkeletonStationIds.Contains(stationId))
+                    .ToArray();
+                var status = $"Required K4A skeleton sources incomplete: {sourceSkeletonStationIds.Count}/{requiredStationIds.Length}";
+                AddLog("error", $"{status}; missing stations {string.Join(", ", missingStationIds)}");
+                await StopOrbbecLiveAsync().ConfigureAwait(true);
+                LiveInputStatus = status;
+                return;
+            }
+
+            var activeCount = CountActiveRequiredSkeletonStations(requiredStationIds);
+            if (activeCount != requiredStationIds.Length)
+            {
+                LiveInputStatus = $"K4A skeleton read loops initializing: {activeCount}/{requiredStationIds.Length}";
+                _ = WatchRequiredSkeletonActivationAsync(liveStartGeneration, requiredStationIds);
+                return;
+            }
+        }
+
         LiveInputStatus = IsOrbbecLiveRunning
             ? skeletonStreamCount > 0
                 ? $"Orbbec K4A skeleton streams: {skeletonStreamCount}; depth fallback streams: {depthStreamCount}"
@@ -1113,10 +1326,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         for (var index = 0; index < processingModes.Count; index++)
         {
             var processingMode = processingModes[index];
-            if (RequiresCudaRuntime(processingMode) && !CudaRuntimeProbe.IsLikelyAvailable())
+            var bodyTracking = _config.BodyTracking ?? new BodyTrackingConfig();
+            if (!bodyTracking.UseTrackerSidecar &&
+                RequiresCudaRuntime(processingMode) &&
+                !CudaRuntimeProbe.IsLikelyAvailable())
             {
-                AddLog("warn", $"Skipping {processingMode} body tracking for station {runtime.Station.StationId}: {CudaRuntimeProbe.Describe()}");
-                continue;
+                AddLog("error", $"Cannot start required {processingMode} body tracking for station {runtime.Station.StationId}: {CudaRuntimeProbe.Describe()}");
+                return false;
             }
 
             var isLastMode = index == processingModes.Count - 1;
@@ -1127,6 +1343,86 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         return false;
+    }
+
+    private static IReadOnlyList<string> GetConfiguredBodyTrackingProcessingModes(BodyTrackingConfig bodyTracking)
+    {
+        return bodyTracking.ProcessingModes is { Count: > 0 }
+            ? bodyTracking.ProcessingModes
+            : ["Cuda"];
+    }
+
+    private bool IsRequiredSkeletonLiveMode()
+    {
+        return PreviewMode != OrbbecPreviewMode.Color &&
+               GetConfiguredBodyTrackingProcessingModes(_config.BodyTracking ?? new BodyTrackingConfig()).Count > 0;
+    }
+
+    private int[] GetRequiredSkeletonStationIds()
+    {
+        return _stationRuntimes.Values
+            .Where(runtime => runtime.Station.Enabled)
+            .Select(runtime => runtime.Station.StationId)
+            .OrderBy(stationId => stationId)
+            .ToArray();
+    }
+
+    private int CountActiveRequiredSkeletonStations(IReadOnlyCollection<int> requiredStationIds)
+    {
+        return requiredStationIds.Count(stationId =>
+            _activeSkeletonStationIds.Contains(stationId) &&
+            !_fatalSkeletonStationIds.Contains(stationId));
+    }
+
+    private void UpdateRequiredSkeletonActivationStatus()
+    {
+        var requiredStationIds = GetRequiredSkeletonStationIds();
+        if (requiredStationIds.Length == 0)
+        {
+            return;
+        }
+
+        var activeCount = CountActiveRequiredSkeletonStations(requiredStationIds);
+        LiveInputStatus = activeCount == requiredStationIds.Length
+            ? $"K4A skeleton read loops active: {activeCount}/{requiredStationIds.Length}"
+            : $"K4A skeleton read loops initializing: {activeCount}/{requiredStationIds.Length}";
+    }
+
+    private async Task WatchRequiredSkeletonActivationAsync(int liveStartGeneration, IReadOnlyList<int> requiredStationIds)
+    {
+        var deadline = DateTimeOffset.UtcNow + RequiredSkeletonActivationTimeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (_disposed || liveStartGeneration != _liveStartGeneration || !IsOrbbecLiveRunning)
+            {
+                return;
+            }
+
+            var activeCount = CountActiveRequiredSkeletonStations(requiredStationIds);
+            if (activeCount == requiredStationIds.Count)
+            {
+                LiveInputStatus = $"K4A skeleton read loops active: {activeCount}/{requiredStationIds.Count}";
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(500)).ConfigureAwait(true);
+        }
+
+        if (_disposed || liveStartGeneration != _liveStartGeneration || !IsOrbbecLiveRunning)
+        {
+            return;
+        }
+
+        var finalActiveCount = CountActiveRequiredSkeletonStations(requiredStationIds);
+        var missingStationIds = requiredStationIds
+            .Where(stationId =>
+                !_activeSkeletonStationIds.Contains(stationId) ||
+                _fatalSkeletonStationIds.Contains(stationId))
+            .ToArray();
+        var status = $"K4A skeleton read loops did not become active: {finalActiveCount}/{requiredStationIds.Count}";
+        AddLog("error", $"{status}; missing stations {string.Join(", ", missingStationIds)}");
+        await StopOrbbecLiveAsync().ConfigureAwait(true);
+        LiveInputStatus = status;
     }
 
     private static bool RequiresCudaRuntime(string processingMode)
@@ -1155,7 +1451,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         var effectiveFps = Math.Min(Math.Max(1, bodyTracking.MaxFps), configuredFps);
         var roi = runtime.Station.TrackingRoi;
         var modelTag = string.IsNullOrEmpty(modelPath) ? "full model" : "lite model";
-        var source = K4aBodyTrackingSkeletonSourceFactory.Create(new K4aBodyTrackingOptions
+        var sourceOptions = new K4aBodyTrackingOptions
         {
             StationId = runtime.Station.StationId,
             CameraSerial = runtime.Station.AssignedCameraSerial,
@@ -1163,14 +1459,33 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             Fps = effectiveFps,
             DepthMode = runtime.Station.Device.DepthMode,
             ProcessingMode = processingMode,
+            UseLiteModel = bodyTracking.UseLiteModel,
             ModelPath = modelPath,
             GpuDeviceId = bodyTracking.GpuDeviceId,
             BodySelectionRoi = new BodySelectionRoi(roi.MinX, roi.MaxX, roi.MinY, roi.MaxY, roi.MinZ, roi.MaxZ),
             SensorOrientation = "Default",
             PreviewMode = PreviewMode,
             PreviewInterval = previewInterval
-        });
+        };
+        var sidecarPath = ResolveTrackerSidecarExecutablePath(bodyTracking.TrackerExecutablePath);
+        IOrbbecSkeletonFrameSource source;
+        var usingSidecar = bodyTracking.UseTrackerSidecar;
+        if (usingSidecar)
+        {
+            if (string.IsNullOrWhiteSpace(sidecarPath))
+            {
+                AddLog("error", "K4ABT tracker sidecar executable was not found");
+                return false;
+            }
+
+            source = new K4aBodyTrackingSidecarSource(sourceOptions, sidecarPath, ResolveTrackerLogDirectory());
+        }
+        else
+        {
+            source = K4aBodyTrackingSkeletonSourceFactory.Create(sourceOptions);
+        }
         source.FrameArrived += (_, args) => OnOrbbecSkeletonFrameArrived(runtime.Station.StationId, deviceInfo.Serial, args);
+        source.SourceStatus += (_, message) => OnOrbbecSkeletonSourceStatus(runtime.Station.StationId, deviceInfo.Serial, message);
         source.SourceError += (_, message) => OnOrbbecSkeletonSourceError(runtime.Station.StationId, deviceInfo.Serial, message);
 
         try
@@ -1178,19 +1493,29 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             await source.StartAsync().ConfigureAwait(true);
             _orbbecStreams.Add(new OrbbecStreamRuntime(runtime.Station.StationId, null, source));
             var device = Devices.FirstOrDefault(candidate => string.Equals(candidate.Serial, deviceInfo.Serial, StringComparison.OrdinalIgnoreCase));
+            var useStartupPreview = !usingSidecar && RequiresCudaRuntime(processingMode);
+            var sourceTag = usingSidecar ? "sidecar" : "in-process";
+            var startingStatus = useStartupPreview
+                ? $"Preview active; {processingMode} body tracker initializing ({sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})"
+                : $"K4A body tracking active ({processingMode}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})";
+            var cameraStatus = useStartupPreview ? "starting skeleton" : "streaming skeleton";
             if (device is not null)
             {
-                device.Status = "streaming skeleton";
-                device.SkeletonStatus = $"K4A body tracking active ({processingMode}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})";
+                device.Status = cameraStatus;
+                device.SkeletonStatus = startingStatus;
             }
 
             runtime.Row.UpdateCameraFrame(
-                "streaming skeleton",
+                cameraStatus,
                 "-",
                 0,
                 DateTimeOffset.Now,
-                $"K4A body tracking active ({processingMode}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
-            AddLog("info", $"Started K4A body tracking for station {runtime.Station.StationId} ({deviceInfo.Serial}, {processingMode}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
+                startingStatus);
+            AddLog(
+                "info",
+                useStartupPreview
+                    ? $"Started K4A preview for station {runtime.Station.StationId}; {processingMode} body tracker is initializing ({deviceInfo.Serial}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})"
+                    : $"Started K4A body tracking for station {runtime.Station.StationId} ({deviceInfo.Serial}, {processingMode}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
             return true;
         }
         catch (Exception exception)
@@ -1226,6 +1551,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         _orbbecStreams.Clear();
+        _activeSkeletonStationIds.Clear();
+        _fatalSkeletonStationIds.Clear();
+        _lastMultipleBodyWarningAt.Clear();
+        _liveStartGeneration++;
         _liveSkeletonSender?.Dispose();
         _liveSkeletonSender = null;
         IsOrbbecLiveRunning = false;
@@ -1233,7 +1562,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         foreach (var device in Devices)
         {
-            if (device.Status.StartsWith("streaming", StringComparison.OrdinalIgnoreCase))
+            if (device.Status.StartsWith("streaming", StringComparison.OrdinalIgnoreCase) ||
+                device.Status.StartsWith("starting", StringComparison.OrdinalIgnoreCase))
             {
                 device.Status = "connected";
             }
@@ -1281,27 +1611,34 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Runs on the source's read thread: domain evaluation and the Unity
-        // send stay off the UI thread; only the coalesced snapshot below is
-        // marshaled to the dispatcher.
         var frame = args.Frame;
-        var (evaluation, footX, footZ) = EvaluateStationFrame(runtime, frame);
-
-        if (_liveSkeletonSender is not null)
-        {
-            _ = SendLiveFrameAsync(frame);
-        }
-
         var skeletonStatus = !string.IsNullOrWhiteSpace(args.TrackingStatus)
             ? args.TrackingStatus
             : args.BodyCount > 0
-            ? $"tracking {args.BodyCount} body"
+            ? $"tracking {args.BodyCount} {(args.BodyCount == 1 ? "body" : "bodies")}; selected {FormatSelectedBodyId(frame.SelectedBodyId)}"
             : "no body";
+        var isDepthOnlyTransient = OrbbecSkeletonTrackingStatus.IsDepthOnlyTransient(skeletonStatus);
+        StationTrackingEvaluation? evaluation = null;
+        double footX = 0.0;
+        double footZ = 0.0;
+
+        if (!isDepthOnlyTransient)
+        {
+            // Runs on the source's read thread: domain evaluation and the UDP
+            // send stay off the UI thread; only the coalesced snapshot below
+            // is marshaled to the dispatcher.
+            (evaluation, footX, footZ) = EvaluateStationFrame(runtime, frame);
+
+            if (_liveSkeletonSender is not null)
+            {
+                _ = SendLiveFrameAsync(frame);
+            }
+        }
 
         QueueStationUiUpdate(stationId, new StationFrameUiUpdate
         {
             Serial = serial,
-            CameraStatus = "streaming skeleton",
+            CameraStatus = isDepthOnlyTransient ? "streaming preview" : "streaming skeleton",
             Resolution = args.DepthWidth > 0 && args.DepthHeight > 0
                 ? $"{args.DepthWidth}x{args.DepthHeight}"
                 : "depth unavailable",
@@ -1310,7 +1647,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             SkeletonStatus = skeletonStatus,
             Preview = args.DepthPreview,
             PreviewMode = args.PreviewMode,
-            Frame = frame,
+            Frame = isDepthOnlyTransient ? null : frame,
             Evaluation = evaluation,
             FootX = footX,
             FootZ = footZ,
@@ -1416,14 +1753,45 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             var averageJointConfidence = jointCount == 0
                 ? 0.0
                 : frame.Joints.Average(joint => joint.Confidence);
-            runtime.Row.UpdateSkeletonDiagnostics(jointCount, trackedJointCount, averageJointConfidence);
+            runtime.Row.UpdateSkeletonDiagnostics(
+                jointCount,
+                trackedJointCount,
+                averageJointConfidence,
+                frame.BodyCount,
+                frame.SelectedBodyId);
             runtime.Row.UpdateSkeletonOverlay(frame.Joints);
+
+            if (FieldBodyCountPolicy.HasExtraBodies(evaluation.HasPlayer, frame.BodyCount))
+            {
+                ReportMultipleBodyWarning(stationId, frame.BodyCount, frame.SelectedBodyId);
+            }
         }
 
         if (update.EstimatedFps > 0)
         {
             SendFps = Math.Max(0, (int)Math.Round(update.EstimatedFps));
         }
+    }
+
+    private void ReportMultipleBodyWarning(int stationId, int bodyCount, long selectedBodyId)
+    {
+        if (!IsRequiredSkeletonLiveMode())
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_lastMultipleBodyWarningAt.TryGetValue(stationId, out var lastWarningAt) &&
+            now - lastWarningAt < MultipleBodyWarningInterval)
+        {
+            return;
+        }
+
+        _lastMultipleBodyWarningAt[stationId] = now;
+        LiveInputStatus = $"Extra body detected on station {stationId}";
+        AddLog(
+            "warn",
+            $"Station {stationId} sees {bodyCount} bodies; selected {FormatSelectedBodyId(selectedBodyId)}. Field target is one person per Femto Mega.");
     }
 
     private void OnOrbbecSkeletonSourceError(int stationId, string serial, string message)
@@ -1454,7 +1822,82 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 message);
         }
 
+        if (!isTransient)
+        {
+            _activeSkeletonStationIds.Remove(stationId);
+            _fatalSkeletonStationIds.Add(stationId);
+            LiveInputStatus = $"Orbbec skeleton error on station {stationId}";
+            if (IsRequiredSkeletonLiveMode() && IsOrbbecLiveRunning)
+            {
+                _ = StopRequiredSkeletonLiveAfterFatalErrorAsync(stationId, message);
+            }
+        }
+
         AddLog(isTransient ? "warn" : "error", $"K4A body tracking {(isTransient ? "status" : "error")} on station {stationId}: {message}");
+    }
+
+    private async Task StopRequiredSkeletonLiveAfterFatalErrorAsync(int stationId, string message)
+    {
+        if (_isStoppingRequiredSkeletonLiveAfterError)
+        {
+            return;
+        }
+
+        _isStoppingRequiredSkeletonLiveAfterError = true;
+        var status = $"Required K4A skeleton stream failed on station {stationId}";
+        AddLog("error", $"{status}; stopping live input: {message}");
+
+        try
+        {
+            await StopOrbbecLiveAsync().ConfigureAwait(true);
+            LiveInputStatus = status;
+        }
+        finally
+        {
+            _isStoppingRequiredSkeletonLiveAfterError = false;
+        }
+    }
+
+    private void OnOrbbecSkeletonSourceStatus(int stationId, string serial, string message)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(() => OnOrbbecSkeletonSourceStatus(stationId, serial, message));
+            return;
+        }
+
+        var isTrackerActive = message.Contains("read loop started", StringComparison.OrdinalIgnoreCase);
+        if (isTrackerActive)
+        {
+            _activeSkeletonStationIds.Add(stationId);
+            _fatalSkeletonStationIds.Remove(stationId);
+        }
+
+        var status = isTrackerActive ? "streaming skeleton" : "starting skeleton";
+        var device = Devices.FirstOrDefault(candidate => string.Equals(candidate.Serial, serial, StringComparison.OrdinalIgnoreCase));
+        if (device is not null)
+        {
+            device.Status = status;
+            device.SkeletonStatus = message;
+        }
+
+        if (_stationRuntimes.TryGetValue(stationId, out var runtime))
+        {
+            runtime.Row.UpdateCameraFrame(
+                status,
+                runtime.Row.CameraFrameResolution,
+                runtime.Row.CameraFps,
+                DateTimeOffset.Now,
+                message);
+        }
+
+        if (isTrackerActive && IsRequiredSkeletonLiveMode() && IsOrbbecLiveRunning)
+        {
+            UpdateRequiredSkeletonActivationStatus();
+        }
+
+        AddLog("info", $"K4A body tracking status on station {stationId}: {message}");
     }
 
     private static bool IsTransientSkeletonSourceMessage(string message)
@@ -1464,6 +1907,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                message.Contains("K4A_WAIT_RESULT_FAILED", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("queue busy", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("waiting for camera capture", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatSelectedBodyId(long selectedBodyId)
+    {
+        return selectedBodyId < 0 ? "none" : selectedBodyId.ToString(CultureInfo.InvariantCulture);
     }
 
     private async Task SendLiveFrameAsync(StationSkeletonFrame frame)
@@ -1903,6 +2351,33 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         return Path.GetFullPath(localRelativePath);
     }
 
+    private static string ResolveTrackerSidecarExecutablePath(string configuredPath)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            IEnumerable<string> configuredCandidates = Path.IsPathRooted(configuredPath)
+                ? new[] { configuredPath }
+                : ConfigSearchRoots()
+                    .Select(root => Path.Combine(root.FullName, configuredPath))
+                    .Append(Path.GetFullPath(configuredPath));
+            var configuredMatch = configuredCandidates.FirstOrDefault(File.Exists);
+            if (configuredMatch is not null)
+            {
+                return configuredMatch;
+            }
+        }
+
+        const string defaultRelativePath = "artifacts/dscc-k4abt-tracker/x64/Release/dscc-k4abt-tracker.exe";
+        return ConfigSearchRoots()
+            .Select(root => Path.Combine(root.FullName, defaultRelativePath))
+            .FirstOrDefault(File.Exists) ?? string.Empty;
+    }
+
+    private static string ResolveTrackerLogDirectory()
+    {
+        return Path.Combine(Environment.CurrentDirectory, "Log", "trackers");
+    }
+
     private static IEnumerable<DirectoryInfo> ConfigSearchRoots()
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1937,6 +2412,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             stream.SkeletonSource?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
         _orbbecStreams.Clear();
+        _activeSkeletonStationIds.Clear();
+        _fatalSkeletonStationIds.Clear();
+        _lastMultipleBodyWarningAt.Clear();
+        _liveStartGeneration++;
         _liveSkeletonSender?.Dispose();
     }
 
@@ -1956,6 +2435,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         // dispose off the UI thread (their stop paths block on read loops).
         var streamsToDispose = _orbbecStreams.ToArray();
         _orbbecStreams.Clear();
+        _activeSkeletonStationIds.Clear();
+        _fatalSkeletonStationIds.Clear();
+        _lastMultipleBodyWarningAt.Clear();
+        _liveStartGeneration++;
         _liveSkeletonSender?.Dispose();
         _liveSkeletonSender = null;
         IsOrbbecLiveRunning = false;

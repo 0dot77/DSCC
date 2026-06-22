@@ -106,7 +106,9 @@ public sealed class HeadRotationStabilizer
             BodyRotation = frame.BodyRotation,
             Joints = joints,
             AnchorPosition = frame.AnchorPosition,
-            AnchorRotationYDegrees = frame.AnchorRotationYDegrees
+            AnchorRotationYDegrees = frame.AnchorRotationYDegrees,
+            BodyCount = frame.BodyCount,
+            SelectedBodyId = frame.SelectedBodyId
         };
     }
 

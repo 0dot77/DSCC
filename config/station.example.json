@@ -1,6 +1,6 @@
 {
   "stationId": 1,
-  "cameraSerial": "BOLT_OR_MEGA_SERIAL",
+  "cameraSerial": "MEGA_SERIAL",
   "footMarkerCenter": {
     "x": 0.0,
     "y": 0.0,

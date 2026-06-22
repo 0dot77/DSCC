@@ -33,9 +33,10 @@ public sealed class DsccConfigStoreTests
             Assert.Equal(1, station.StationId);
             Assert.True(station.Enabled);
             Assert.Equal("Station 1", station.DisplayName);
-            Assert.Equal("FemtoBolt", station.Device.DeviceType);
-            Assert.Equal("BOLT_SERIAL", station.Device.Serial);
-            Assert.Equal(30, station.Device.Fps);
+            Assert.Equal("FemtoMega", station.Device.DeviceType);
+            Assert.Equal("MEGA_SERIAL", station.Device.Serial);
+            Assert.Equal("NFOV_UNBINNED", station.Device.DepthMode);
+            Assert.Equal(15, station.Device.Fps);
             Assert.Equal(new Vector3Meters(0.0, 0.0, 2.1), station.Calibration.FootMarkerCenter);
             Assert.Equal(-0.7, station.Calibration.TrackingRoi.MinX);
             Assert.Equal(2.8, station.Calibration.TrackingRoi.MaxZ);
@@ -79,12 +80,12 @@ public sealed class DsccConfigStoreTests
                     Enabled = true,
                     Device = new DeviceProfile
                     {
-                        DeviceType = "FemtoBolt",
-                        Serial = "BOLT_SERIAL",
+                        DeviceType = "FemtoMega",
+                        Serial = "MEGA_SERIAL",
                         Connection = "USB",
                         SyncRole = "Primary",
                         DepthMode = "NFOV_UNBINNED",
-                        Fps = 30
+                        Fps = 15
                     },
                     Calibration = new StationCalibration
                     {

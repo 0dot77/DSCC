@@ -15,10 +15,10 @@
   },
   "bodyTracking": {
     "processingModes": [
-      "Cuda",
-      "DirectML",
-      "Cpu"
+      "DirectML"
     ],
+    "useTrackerSidecar": true,
+    "trackerExecutablePath": "artifacts/dscc-k4abt-tracker/x64/Release/dscc-k4abt-tracker.exe",
     "useLiteModel": true,
     "maxFps": 15,
     "gpuDeviceId": 0,
@@ -30,27 +30,27 @@
       "displayName": "Station 1",
       "enabled": true,
       "device": {
-        "deviceType": "FemtoBolt",
+        "deviceType": "FemtoMega",
         "serial": "CL2Z16500WS",
         "connection": "USB",
         "syncRole": "Primary",
-        "depthMode": "NFOV_2X2BINNED",
+        "depthMode": "WFOV_2X2BINNED",
         "fps": 15
       },
       "calibration": {
         "cameraSerial": "CL2Z16500WS",
         "footMarkerCenter": {
-          "x": 0,
+          "x": 0.11,
           "y": 0,
-          "z": 2
+          "z": 1.39
         },
         "trackingRoi": {
-          "minX": -0.6260411339155705,
-          "maxX": 0.7739588660844294,
-          "minY": 0,
-          "maxY": 2.4,
-          "minZ": 1,
-          "maxZ": 5
+          "minX": -0.74,
+          "maxX": 0.96,
+          "minY": -1.2,
+          "maxY": 1.2,
+          "minZ": 0.49,
+          "maxZ": 3.19
         },
         "unityAnchor": {
           "x": -3,
@@ -64,20 +64,20 @@
         "lostGraceSeconds": 1.5,
         "exitConfirmSeconds": 3,
         "minSkeletonConfidence": 0.45,
-        "footMarkerRadiusMeters": 0.45,
+        "footMarkerRadiusMeters": 0.6,
         "requireFootMarkerWhileActive": false
       }
     },
     {
       "stationId": 2,
       "displayName": "Station 2",
-      "enabled": true,
+      "enabled": false,
       "device": {
         "deviceType": "FemtoMega",
         "serial": "",
         "connection": "USB",
         "syncRole": "Secondary",
-        "depthMode": "NFOV_2X2BINNED",
+        "depthMode": "NFOV_UNBINNED",
         "fps": 15
       },
       "calibration": {
@@ -114,13 +114,13 @@
     {
       "stationId": 3,
       "displayName": "Station 3",
-      "enabled": true,
+      "enabled": false,
       "device": {
-        "deviceType": "FemtoBolt",
+        "deviceType": "FemtoMega",
         "serial": "",
         "connection": "USB",
         "syncRole": "Secondary",
-        "depthMode": "NFOV_2X2BINNED",
+        "depthMode": "NFOV_UNBINNED",
         "fps": 15
       },
       "calibration": {
@@ -157,13 +157,13 @@
     {
       "stationId": 4,
       "displayName": "Station 4",
-      "enabled": true,
+      "enabled": false,
       "device": {
-        "deviceType": "FemtoBolt",
+        "deviceType": "FemtoMega",
         "serial": "",
         "connection": "USB",
         "syncRole": "Secondary",
-        "depthMode": "NFOV_2X2BINNED",
+        "depthMode": "NFOV_UNBINNED",
         "fps": 15
       },
       "calibration": {

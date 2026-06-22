@@ -82,6 +82,22 @@ public sealed class OrbbecAdapterContractTests
     }
 
     [Fact]
+    public void ForDevice_DefaultsToMegaFieldTrackingDepthMode()
+    {
+        var deviceInfo = new OrbbecDeviceInfo(
+            OrbbecDeviceType.FemtoMega,
+            "MEGA-DEFAULT-001",
+            OrbbecConnectionKind.Usb,
+            "Femto Mega");
+
+        var configuration = OrbbecDeviceConfiguration.ForDevice(deviceInfo);
+
+        Assert.Equal(OrbbecDeviceType.FemtoMega, configuration.DeviceType);
+        Assert.Equal(OrbbecDepthMode.NfovUnbinned, configuration.DepthMode);
+        Assert.Equal(15, configuration.Fps);
+    }
+
+    [Fact]
     public void ProbeRuntime_WithBundledSdk_FindsManagedWrapperAndNativeLibrary()
     {
         var runtime = OrbbecSdkRuntimeProbe.Probe();

@@ -10,15 +10,20 @@ public sealed class FakeSkeletonFrameGenerator
         "SpineNavel",
         "SpineChest",
         "Neck",
-        "Head",
         "ClavicleLeft",
         "ShoulderLeft",
         "ElbowLeft",
         "WristLeft",
+        "HandLeft",
+        "HandTipLeft",
+        "ThumbLeft",
         "ClavicleRight",
         "ShoulderRight",
         "ElbowRight",
         "WristRight",
+        "HandRight",
+        "HandTipRight",
+        "ThumbRight",
         "HipLeft",
         "KneeLeft",
         "AnkleLeft",
@@ -26,7 +31,13 @@ public sealed class FakeSkeletonFrameGenerator
         "HipRight",
         "KneeRight",
         "AnkleRight",
-        "FootRight"
+        "FootRight",
+        "Head",
+        "Nose",
+        "EyeLeft",
+        "EarLeft",
+        "EyeRight",
+        "EarRight"
     ];
 
     public IReadOnlyList<StationSkeletonFrame> CreateSequence(FakeSkeletonFrameOptions? options = null)
@@ -63,7 +74,9 @@ public sealed class FakeSkeletonFrameGenerator
                 TrackingLostSeconds = CalculateLostSeconds(elapsed, options),
                 PelvisLocal = pelvis,
                 BodyRotation = QuaternionDto.Identity,
-                Joints = CreateJoints(pelvis, confidence)
+                Joints = CreateJoints(pelvis, confidence, CalculateJointMotion(elapsed, hasPlayer, options)),
+                BodyCount = hasPlayer ? 1 : 0,
+                SelectedBodyId = hasPlayer ? options.StationId : -1
             });
         }
 
@@ -169,7 +182,10 @@ public sealed class FakeSkeletonFrameGenerator
         return (float)(elapsed - activeEnd).TotalSeconds;
     }
 
-    private static JointFrameDto[] CreateJoints(Vector3Dto pelvis, float confidence)
+    private static JointFrameDto[] CreateJoints(
+        Vector3Dto pelvis,
+        float confidence,
+        FakeSkeletonJointMotion motion)
     {
         var joints = new JointFrameDto[JointNames.Length];
 
@@ -178,7 +194,7 @@ public sealed class FakeSkeletonFrameGenerator
             joints[index] = new JointFrameDto
             {
                 Name = JointNames[index],
-                PositionLocal = OffsetJoint(JointNames[index], pelvis),
+                PositionLocal = OffsetJoint(JointNames[index], pelvis, motion),
                 RotationLocal = QuaternionDto.Identity,
                 Confidence = confidence
             };
@@ -187,30 +203,71 @@ public sealed class FakeSkeletonFrameGenerator
         return joints;
     }
 
-    private static Vector3Dto OffsetJoint(string jointName, Vector3Dto pelvis)
+    private static FakeSkeletonJointMotion CalculateJointMotion(
+        TimeSpan elapsed,
+        bool hasPlayer,
+        FakeSkeletonFrameOptions options)
+    {
+        if (!hasPlayer || !options.AnimateJoints)
+        {
+            return FakeSkeletonJointMotion.Neutral;
+        }
+
+        var phase = (float)(elapsed.TotalSeconds * Math.PI * 2d * options.MotionCyclesPerSecond);
+        var oppositePhase = phase + MathF.PI;
+        var limb = options.LimbMotionMeters;
+        var head = options.HeadMotionMeters;
+        var leftStep = MathF.Sin(phase);
+        var rightStep = MathF.Sin(oppositePhase);
+
+        return new FakeSkeletonJointMotion(
+            TorsoLeanX: MathF.Sin(phase * 0.5f) * limb * 0.08f,
+            HeadLookX: MathF.Sin(phase * 0.5f) * head,
+            LeftArmLift: (1f - MathF.Cos(phase)) * limb * 0.5f,
+            RightArmLift: (1f - MathF.Cos(oppositePhase)) * limb * 0.5f,
+            LeftArmForward: leftStep * limb * 0.35f,
+            RightArmForward: rightStep * limb * 0.35f,
+            LeftLegForward: leftStep * limb * 0.35f,
+            RightLegForward: rightStep * limb * 0.35f,
+            LeftKneeLift: MathF.Max(0, leftStep) * limb * 0.42f,
+            RightKneeLift: MathF.Max(0, rightStep) * limb * 0.42f);
+    }
+
+    private static Vector3Dto OffsetJoint(string jointName, Vector3Dto pelvis, FakeSkeletonJointMotion motion)
     {
         return jointName switch
         {
             "SpineNavel" => pelvis with { Y = pelvis.Y + 0.25f },
-            "SpineChest" => pelvis with { Y = pelvis.Y + 0.55f },
-            "Neck" => pelvis with { Y = pelvis.Y + 0.82f },
-            "Head" => pelvis with { Y = pelvis.Y + 1.05f },
-            "ClavicleLeft" => new Vector3Dto(pelvis.X - 0.12f, pelvis.Y + 0.72f, pelvis.Z),
-            "ShoulderLeft" => new Vector3Dto(pelvis.X - 0.28f, pelvis.Y + 0.68f, pelvis.Z),
-            "ElbowLeft" => new Vector3Dto(pelvis.X - 0.48f, pelvis.Y + 0.45f, pelvis.Z),
-            "WristLeft" => new Vector3Dto(pelvis.X - 0.58f, pelvis.Y + 0.22f, pelvis.Z),
-            "ClavicleRight" => new Vector3Dto(pelvis.X + 0.12f, pelvis.Y + 0.72f, pelvis.Z),
-            "ShoulderRight" => new Vector3Dto(pelvis.X + 0.28f, pelvis.Y + 0.68f, pelvis.Z),
-            "ElbowRight" => new Vector3Dto(pelvis.X + 0.48f, pelvis.Y + 0.45f, pelvis.Z),
-            "WristRight" => new Vector3Dto(pelvis.X + 0.58f, pelvis.Y + 0.22f, pelvis.Z),
+            "SpineChest" => new Vector3Dto(pelvis.X + motion.TorsoLeanX * 0.4f, pelvis.Y + 0.55f, pelvis.Z),
+            "Neck" => new Vector3Dto(pelvis.X + motion.TorsoLeanX * 0.75f, pelvis.Y + 0.82f, pelvis.Z),
+            "Head" => new Vector3Dto(pelvis.X + motion.TorsoLeanX + motion.HeadLookX * 0.45f, pelvis.Y + 1.05f, pelvis.Z),
+            "ClavicleLeft" => new Vector3Dto(pelvis.X - 0.12f + motion.TorsoLeanX * 0.55f, pelvis.Y + 0.72f, pelvis.Z),
+            "ShoulderLeft" => new Vector3Dto(pelvis.X - 0.28f + motion.TorsoLeanX * 0.55f, pelvis.Y + 0.68f, pelvis.Z),
+            "ElbowLeft" => new Vector3Dto(pelvis.X - 0.48f + motion.TorsoLeanX * 0.45f, pelvis.Y + 0.45f + motion.LeftArmLift * 0.55f, pelvis.Z + motion.LeftArmForward * 0.55f),
+            "WristLeft" => new Vector3Dto(pelvis.X - 0.58f + motion.TorsoLeanX * 0.35f, pelvis.Y + 0.22f + motion.LeftArmLift, pelvis.Z + motion.LeftArmForward),
+            "HandLeft" => new Vector3Dto(pelvis.X - 0.62f + motion.TorsoLeanX * 0.35f, pelvis.Y + 0.16f + motion.LeftArmLift, pelvis.Z + 0.02f + motion.LeftArmForward),
+            "HandTipLeft" => new Vector3Dto(pelvis.X - 0.66f + motion.TorsoLeanX * 0.35f, pelvis.Y + 0.10f + motion.LeftArmLift, pelvis.Z + 0.04f + motion.LeftArmForward),
+            "ThumbLeft" => new Vector3Dto(pelvis.X - 0.62f + motion.TorsoLeanX * 0.35f, pelvis.Y + 0.12f + motion.LeftArmLift * 0.9f, pelvis.Z - 0.05f + motion.LeftArmForward),
+            "ClavicleRight" => new Vector3Dto(pelvis.X + 0.12f + motion.TorsoLeanX * 0.55f, pelvis.Y + 0.72f, pelvis.Z),
+            "ShoulderRight" => new Vector3Dto(pelvis.X + 0.28f + motion.TorsoLeanX * 0.55f, pelvis.Y + 0.68f, pelvis.Z),
+            "ElbowRight" => new Vector3Dto(pelvis.X + 0.48f + motion.TorsoLeanX * 0.45f, pelvis.Y + 0.45f + motion.RightArmLift * 0.55f, pelvis.Z + motion.RightArmForward * 0.55f),
+            "WristRight" => new Vector3Dto(pelvis.X + 0.58f + motion.TorsoLeanX * 0.35f, pelvis.Y + 0.22f + motion.RightArmLift, pelvis.Z + motion.RightArmForward),
+            "HandRight" => new Vector3Dto(pelvis.X + 0.62f + motion.TorsoLeanX * 0.35f, pelvis.Y + 0.16f + motion.RightArmLift, pelvis.Z + 0.02f + motion.RightArmForward),
+            "HandTipRight" => new Vector3Dto(pelvis.X + 0.66f + motion.TorsoLeanX * 0.35f, pelvis.Y + 0.10f + motion.RightArmLift, pelvis.Z + 0.04f + motion.RightArmForward),
+            "ThumbRight" => new Vector3Dto(pelvis.X + 0.62f + motion.TorsoLeanX * 0.35f, pelvis.Y + 0.12f + motion.RightArmLift * 0.9f, pelvis.Z - 0.05f + motion.RightArmForward),
             "HipLeft" => new Vector3Dto(pelvis.X - 0.12f, pelvis.Y - 0.05f, pelvis.Z),
-            "KneeLeft" => new Vector3Dto(pelvis.X - 0.16f, pelvis.Y - 0.48f, pelvis.Z + 0.03f),
-            "AnkleLeft" => new Vector3Dto(pelvis.X - 0.17f, pelvis.Y - 0.88f, pelvis.Z),
-            "FootLeft" => new Vector3Dto(pelvis.X - 0.17f, pelvis.Y - 0.9f, pelvis.Z + 0.12f),
+            "KneeLeft" => new Vector3Dto(pelvis.X - 0.16f, pelvis.Y - 0.48f + motion.LeftKneeLift, pelvis.Z + 0.03f + motion.LeftLegForward * 0.65f),
+            "AnkleLeft" => new Vector3Dto(pelvis.X - 0.17f, pelvis.Y - 0.88f + motion.LeftKneeLift * 0.35f, pelvis.Z + motion.LeftLegForward),
+            "FootLeft" => new Vector3Dto(pelvis.X - 0.17f, pelvis.Y - 0.9f + motion.LeftKneeLift * 0.25f, pelvis.Z + 0.12f + motion.LeftLegForward),
             "HipRight" => new Vector3Dto(pelvis.X + 0.12f, pelvis.Y - 0.05f, pelvis.Z),
-            "KneeRight" => new Vector3Dto(pelvis.X + 0.16f, pelvis.Y - 0.48f, pelvis.Z - 0.03f),
-            "AnkleRight" => new Vector3Dto(pelvis.X + 0.17f, pelvis.Y - 0.88f, pelvis.Z),
-            "FootRight" => new Vector3Dto(pelvis.X + 0.17f, pelvis.Y - 0.9f, pelvis.Z + 0.12f),
+            "KneeRight" => new Vector3Dto(pelvis.X + 0.16f, pelvis.Y - 0.48f + motion.RightKneeLift, pelvis.Z - 0.03f + motion.RightLegForward * 0.65f),
+            "AnkleRight" => new Vector3Dto(pelvis.X + 0.17f, pelvis.Y - 0.88f + motion.RightKneeLift * 0.35f, pelvis.Z + motion.RightLegForward),
+            "FootRight" => new Vector3Dto(pelvis.X + 0.17f, pelvis.Y - 0.9f + motion.RightKneeLift * 0.25f, pelvis.Z + 0.12f + motion.RightLegForward),
+            "Nose" => new Vector3Dto(pelvis.X + motion.TorsoLeanX + motion.HeadLookX, pelvis.Y + 1.02f, pelvis.Z + 0.12f),
+            "EyeLeft" => new Vector3Dto(pelvis.X - 0.04f + motion.TorsoLeanX + motion.HeadLookX * 0.85f, pelvis.Y + 1.08f, pelvis.Z + 0.09f),
+            "EarLeft" => new Vector3Dto(pelvis.X - 0.11f + motion.TorsoLeanX + motion.HeadLookX * 0.65f, pelvis.Y + 1.06f, pelvis.Z + 0.01f),
+            "EyeRight" => new Vector3Dto(pelvis.X + 0.04f + motion.TorsoLeanX + motion.HeadLookX * 0.85f, pelvis.Y + 1.08f, pelvis.Z + 0.09f),
+            "EarRight" => new Vector3Dto(pelvis.X + 0.11f + motion.TorsoLeanX + motion.HeadLookX * 0.65f, pelvis.Y + 1.06f, pelvis.Z + 0.01f),
             _ => pelvis
         };
     }
@@ -243,5 +300,20 @@ public sealed class FakeSkeletonFrameGenerator
     private static double SmoothStep(double t)
     {
         return t * t * (3 - 2 * t);
+    }
+
+    private readonly record struct FakeSkeletonJointMotion(
+        float TorsoLeanX,
+        float HeadLookX,
+        float LeftArmLift,
+        float RightArmLift,
+        float LeftArmForward,
+        float RightArmForward,
+        float LeftLegForward,
+        float RightLegForward,
+        float LeftKneeLift,
+        float RightKneeLift)
+    {
+        public static FakeSkeletonJointMotion Neutral { get; } = new();
     }
 }

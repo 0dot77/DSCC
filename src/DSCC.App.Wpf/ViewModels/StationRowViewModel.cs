@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using DSCC.Core.Devices;
 using DSCC.Core.Stations;
 using DSCC.Orbbec;
 using DSCC.Protocol;
@@ -47,6 +49,8 @@ public sealed class StationRowViewModel : ObservableObject
     private int _trackedJointCount;
     private double _averageJointConfidence;
     private double _jointCoverage;
+    private int _bodyCount;
+    private long _selectedBodyId = -1;
     private bool _isDirty;
     private double _pelvisX;
     private double _pelvisY;
@@ -311,6 +315,32 @@ public sealed class StationRowViewModel : ObservableObject
         }
     }
 
+    public int BodyCount
+    {
+        get => _bodyCount;
+        private set
+        {
+            if (SetProperty(ref _bodyCount, value))
+            {
+                OnPropertyChanged(nameof(SkeletonDiagnosticSummary));
+                OnPropertyChanged(nameof(BodySelectionSummary));
+            }
+        }
+    }
+
+    public long SelectedBodyId
+    {
+        get => _selectedBodyId;
+        private set
+        {
+            if (SetProperty(ref _selectedBodyId, value))
+            {
+                OnPropertyChanged(nameof(SkeletonDiagnosticSummary));
+                OnPropertyChanged(nameof(BodySelectionSummary));
+            }
+        }
+    }
+
     public bool IsDirty
     {
         get => _isDirty;
@@ -563,6 +593,9 @@ public sealed class StationRowViewModel : ObservableObject
     public string SkeletonDiagnosticSummary =>
         $"{SkeletonQuality} · joints {TrackedJointCount}/{JointCount} · avg {AverageJointConfidence:0.00} · pelvis {PelvisX:0.00},{PelvisY:0.00},{PelvisZ:0.00}";
 
+    public string BodySelectionSummary =>
+        $"bodies {BodyCount} · selected {FormatSelectedBodyId(SelectedBodyId)}";
+
     public double FootMarkerCanvasLeft => WorldXToCanvas(FootMarkerX) - MarkerRadius;
 
     public double FootMarkerCanvasTop => WorldZToCanvas(FootMarkerZ) - MarkerRadius;
@@ -603,12 +636,19 @@ public sealed class StationRowViewModel : ObservableObject
         RoiMaxZ = centerZ + depth / 2.0;
     }
 
-    public void UpdateSkeletonDiagnostics(int jointCount, int trackedJointCount, double averageJointConfidence)
+    public void UpdateSkeletonDiagnostics(
+        int jointCount,
+        int trackedJointCount,
+        double averageJointConfidence,
+        int bodyCount,
+        long selectedBodyId)
     {
         JointCount = Math.Max(0, jointCount);
         TrackedJointCount = Math.Clamp(trackedJointCount, 0, JointCount);
         AverageJointConfidence = Math.Clamp(averageJointConfidence, 0.0, 1.0);
         JointCoverage = JointCount == 0 ? 0.0 : TrackedJointCount / (double)JointCount;
+        BodyCount = Math.Max(0, bodyCount);
+        SelectedBodyId = selectedBodyId;
         OnSkeletonQualityChanged();
     }
 
@@ -823,7 +863,7 @@ public sealed class StationRowViewModel : ObservableObject
 
         station.FootMarkerCenter = new Vector3Meters(FootMarkerX, FootMarkerY, FootMarkerZ);
         station.AssignedCameraSerial = AssignedCameraSerial.Trim();
-        station.DeviceType = string.IsNullOrWhiteSpace(DeviceType) ? "FemtoBolt" : DeviceType.Trim();
+        station.DeviceType = string.IsNullOrWhiteSpace(DeviceType) ? DeviceProfile.DefaultDeviceType : DeviceType.Trim();
         station.TrackingRoi.MinX = Math.Min(RoiMinX, RoiMaxX);
         station.TrackingRoi.MaxX = Math.Max(RoiMinX, RoiMaxX);
         station.TrackingRoi.MinY = Math.Min(RoiMinY, RoiMaxY);
@@ -891,6 +931,11 @@ public sealed class StationRowViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(SkeletonQuality));
         OnPropertyChanged(nameof(SkeletonDiagnosticSummary));
+    }
+
+    private static string FormatSelectedBodyId(long selectedBodyId)
+    {
+        return selectedBodyId < 0 ? "none" : selectedBodyId.ToString(CultureInfo.InvariantCulture);
     }
 
     private static double WorldXToCanvas(double x)

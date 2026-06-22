@@ -25,7 +25,7 @@ public sealed record OrbbecDeviceConfiguration(
             StationId: null,
             deviceInfo.Connection,
             OrbbecSyncRole.Primary,
-            OrbbecDepthMode.WfovBinned,
+            OrbbecDepthMode.NfovUnbinned,
             Fps: 15);
     }
 }

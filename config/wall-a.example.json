@@ -14,7 +14,7 @@
     "headRotationDeadZoneDegrees": 0.75
   },
   "bodyTracking": {
-    "processingModes": ["Cuda", "DirectML", "Cpu"],
+    "processingModes": ["Cuda"],
     "useLiteModel": true,
     "maxFps": 15,
     "gpuDeviceId": 0,
@@ -26,11 +26,11 @@
       "displayName": "Station 1",
       "enabled": true,
       "device": {
-        "deviceType": "FemtoBolt",
+        "deviceType": "FemtoMega",
         "serial": "",
         "connection": "USB",
         "syncRole": "Primary",
-        "depthMode": "WFOV_2X2BINNED",
+        "depthMode": "NFOV_UNBINNED",
         "fps": 15
       },
       "calibration": {
@@ -68,11 +68,11 @@
       "displayName": "Station 2",
       "enabled": true,
       "device": {
-        "deviceType": "FemtoBolt",
+        "deviceType": "FemtoMega",
         "serial": "",
         "connection": "USB",
         "syncRole": "Secondary",
-        "depthMode": "WFOV_2X2BINNED",
+        "depthMode": "NFOV_UNBINNED",
         "fps": 15
       },
       "calibration": {
@@ -110,11 +110,11 @@
       "displayName": "Station 3",
       "enabled": true,
       "device": {
-        "deviceType": "FemtoBolt",
+        "deviceType": "FemtoMega",
         "serial": "",
         "connection": "USB",
         "syncRole": "Secondary",
-        "depthMode": "WFOV_2X2BINNED",
+        "depthMode": "NFOV_UNBINNED",
         "fps": 15
       },
       "calibration": {
@@ -152,11 +152,11 @@
       "displayName": "Station 4",
       "enabled": true,
       "device": {
-        "deviceType": "FemtoBolt",
+        "deviceType": "FemtoMega",
         "serial": "",
         "connection": "USB",
         "syncRole": "Secondary",
-        "depthMode": "WFOV_2X2BINNED",
+        "depthMode": "NFOV_UNBINNED",
         "fps": 15
       },
       "calibration": {

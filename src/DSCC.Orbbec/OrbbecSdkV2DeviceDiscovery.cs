@@ -109,12 +109,17 @@ public sealed class OrbbecSdkV2DeviceDiscovery : IOrbbecDeviceDiscovery
 
     private static OrbbecDeviceType DetectDeviceType(string name)
     {
+        if (name.Contains("Bolt", StringComparison.OrdinalIgnoreCase))
+        {
+            return OrbbecDeviceType.FemtoBolt;
+        }
+
         if (name.Contains("Mega", StringComparison.OrdinalIgnoreCase))
         {
             return OrbbecDeviceType.FemtoMega;
         }
 
-        return OrbbecDeviceType.FemtoBolt;
+        return OrbbecDeviceType.FemtoMega;
     }
 
     private static OrbbecConnectionKind ParseConnection(string connection)

@@ -6,13 +6,15 @@ public sealed class K4aBodyTrackingOptions
 
     public string CameraSerial { get; init; } = string.Empty;
 
-    public string DeviceType { get; init; } = "FemtoBolt";
+    public string DeviceType { get; init; } = nameof(OrbbecDeviceType.FemtoMega);
 
     public int Fps { get; init; } = 15;
 
-    public string DepthMode { get; init; } = "WFOV_2X2BINNED";
+    public string DepthMode { get; init; } = "NFOV_UNBINNED";
 
-    public string ProcessingMode { get; init; } = "Cpu";
+    public string ProcessingMode { get; init; } = "Cuda";
+
+    public bool UseLiteModel { get; init; } = true;
 
     /// <summary>
     /// Absolute path to the k4abt ONNX model (e.g. the lite model). Empty keeps
@@ -36,7 +38,7 @@ public sealed class K4aBodyTrackingOptions
 
     public TimeSpan CaptureTimeout { get; init; } = TimeSpan.FromMilliseconds(500);
 
-    public TimeSpan EnqueueTimeout { get; init; } = TimeSpan.Zero;
+    public TimeSpan EnqueueTimeout { get; init; } = TimeSpan.FromMilliseconds(500);
 
-    public TimeSpan ResultTimeout { get; init; } = TimeSpan.Zero;
+    public TimeSpan ResultTimeout { get; init; } = TimeSpan.FromMilliseconds(1000);
 }
