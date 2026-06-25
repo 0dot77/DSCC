@@ -645,17 +645,13 @@
                     <Button Content="Auto assign" Command="{Binding AutoAssignDevicesCommand}" />
                     <Button Content="Start Orbbec live" Style="{StaticResource PrimaryButton}" Command="{Binding StartOrbbecLiveCommand}" />
                     <Button Content="Stop Orbbec" Command="{Binding StopOrbbecLiveCommand}" />
-                    <ComboBox Width="104"
-                              ItemsSource="{Binding PreviewModes}"
-                              SelectedItem="{Binding PreviewMode}"
-                              Margin="0,0,8,0" />
                     <Button Content="Send test frame" Command="{Binding SendTestFrameCommand}" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
                     <Border Style="{StaticResource ChipBorder}">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse Width="6" Height="6" Fill="{StaticResource OkBrush}" Margin="0,0,7,0" />
-                            <TextBlock Text="fps " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
+                            <TextBlock Text="target " Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" />
                             <TextBlock Text="{Binding SendFps}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink0Brush}" />
                         </StackPanel>
                     </Border>
@@ -797,7 +793,8 @@
                                                     </StackPanel>
                                                     <StackPanel Grid.Column="2" HorizontalAlignment="Right">
                                                         <TextBlock Text="{Binding Status}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextAlignment="Right" />
-                                                        <TextBlock Text="{Binding Fps, StringFormat={}{0:0.0} fps}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" TextAlignment="Right" />
+                                                        <TextBlock Text="{Binding Fps, StringFormat={}{0:0.0} skel fps}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" TextAlignment="Right" />
+                                                        <TextBlock Text="{Binding FramesReceived, StringFormat={}frames {0}}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink3Brush}" TextAlignment="Right" />
                                                     </StackPanel>
                                                 </Grid>
                                             </DataTemplate>
@@ -893,7 +890,7 @@
                                                                 </StackPanel>
                                                             </Border>
                                                             <TextBlock Grid.Column="1"
-                                                                       Text="{Binding CameraFps, StringFormat={}{0:0.0} fps}"
+                                                                       Text="{Binding CameraFps, StringFormat={}{0:0.0} skel fps}"
                                                                        Style="{StaticResource MonoText}"
                                                                        Foreground="{StaticResource AccentBrush}"
                                                                        VerticalAlignment="Center"
@@ -908,9 +905,6 @@
 
                                                             <Border Grid.Column="0" Background="#D80A0C10" BorderBrush="{StaticResource Rule0Brush}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
                                                                 <Grid>
-                                                                    <Image Source="{Binding LiveDepthPreview}"
-                                                                           Stretch="Uniform"
-                                                                           RenderOptions.BitmapScalingMode="LowQuality" />
                                                                     <Viewbox Stretch="Uniform"
                                                                              IsHitTestVisible="False">
                                                                         <Grid Width="{Binding LivePreviewCanvasWidth}"
@@ -1198,6 +1192,7 @@
                                     <DataGridTextColumn Header="Confidence" Binding="{Binding Confidence, StringFormat=0.00}" Width="110" />
                                     <DataGridTextColumn Header="Joints" Binding="{Binding TrackedJointCount}" Width="80" />
                                     <DataGridTextColumn Header="Joint avg" Binding="{Binding AverageJointConfidence, StringFormat=0.00}" Width="90" />
+                                    <DataGridTextColumn Header="Frames" Binding="{Binding FramesReceived}" Width="90" />
                                     <DataGridTextColumn Header="Inside ROI" Binding="{Binding InsideRoi}" Width="100" />
                                     <DataGridTextColumn Header="Foot marker" Binding="{Binding InsideFootMarker}" Width="110" />
                                     <DataGridTextColumn Header="Lost sec" Binding="{Binding LostSeconds, StringFormat=0.00}" Width="90" />
@@ -1232,12 +1227,9 @@
                                         </DataGridTemplateColumn>
                                         <DataGridTextColumn Header="Connection" Binding="{Binding Connection}" Width="110" />
                                         <DataGridTextColumn Header="Target" Binding="{Binding ConfiguredFps}" Width="70" />
-                                        <DataGridTextColumn Header="Measured" Binding="{Binding Fps, StringFormat=0.0}" Width="90" />
-                                        <DataGridTextColumn Header="Depth" Binding="{Binding DepthMode}" Width="1.3*" />
+                                        <DataGridTextColumn Header="Skel FPS" Binding="{Binding Fps, StringFormat=0.0}" Width="90" />
                                         <DataGridTextColumn Header="Sync" Binding="{Binding SyncRole}" Width="100" />
                                         <DataGridTextColumn Header="Frames" Binding="{Binding FramesReceived}" Width="80" />
-                                        <DataGridTextColumn Header="Depth" Binding="{Binding DepthResolution}" Width="100" />
-                                        <DataGridTextColumn Header="Color" Binding="{Binding ColorResolution}" Width="100" />
                                         <DataGridTextColumn Header="Last frame" Binding="{Binding LastFrameTime}" Width="110" />
                                         <DataGridTextColumn Header="Dropped" Binding="{Binding DroppedFrames}" Width="90" />
                                         <DataGridTextColumn Header="Skeleton" Binding="{Binding SkeletonStatus}" Width="170" />
@@ -1390,9 +1382,6 @@
                                                 ClipToBounds="True"
                                                 Margin="0,0,0,14">
                                             <Grid>
-                                                <Image Source="{Binding ElementName=StationList, Path=SelectedItem.LiveDepthPreview}"
-                                                       Stretch="Uniform"
-                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                                 <Viewbox Stretch="Uniform"
                                                          IsHitTestVisible="False">
                                                     <Grid Width="{Binding ElementName=StationList, Path=SelectedItem.LivePreviewCanvasWidth}"
@@ -1460,7 +1449,7 @@
                                                         Padding="8,5">
                                                     <DockPanel>
                                                         <TextBlock DockPanel.Dock="Right"
-                                                                   Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFps, StringFormat={}{0:0.0} fps}"
+                                                                   Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFps, StringFormat={}{0:0.0} skel fps}"
                                                                    Style="{StaticResource MonoText}"
                                                                    Foreground="{StaticResource Ink0Brush}" />
                                                         <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.LivePreviewStatus}"
@@ -1505,12 +1494,12 @@
                                         <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.SkeletonDiagnosticSummary}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,12,0,0" />
                                         <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.BodySelectionSummary}" Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                         <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" Margin="0,8,0,0">
-                                            <Run Text="camera " Foreground="{StaticResource Ink3Brush}" />
+                                            <Run Text="skeleton " Foreground="{StaticResource Ink3Brush}" />
                                             <Run Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFrameStatus, Mode=OneWay}" />
-                                            <Run Text=" " />
-                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFrameResolution, Mode=OneWay}" />
                                             <Run Text=" @ " />
                                             <Run Text="{Binding ElementName=StationList, Path=SelectedItem.CameraFps, StringFormat={}{0:0}fps, Mode=OneWay}" />
+                                            <Run Text=" / frames " />
+                                            <Run Text="{Binding ElementName=StationList, Path=SelectedItem.FramesReceived, Mode=OneWay}" />
                                         </TextBlock>
                                         <TextBlock Text="{Binding ElementName=StationList, Path=SelectedItem.SkeletonSourceStatus, Mode=OneWay}" Style="{StaticResource MonoText}" Foreground="{StaticResource WarnBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                     </StackPanel>
@@ -1733,7 +1722,7 @@
                     </TextBlock>
                     <TextBlock Text="   " />
                     <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}">
-                        <Run Text="skeleton " Foreground="{StaticResource Ink3Brush}" /><Run Text="UDP :" /><Run Text="{Binding SkeletonPort, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding SendFps, Mode=OneWay}" /><Run Text=" fps" />
+                        <Run Text="skeleton " Foreground="{StaticResource Ink3Brush}" /><Run Text="UDP :" /><Run Text="{Binding SkeletonPort, Mode=OneWay}" /><Run Text=" · target " /><Run Text="{Binding SendFps, Mode=OneWay}" /><Run Text=" fps" />
                     </TextBlock>
                     <TextBlock Text="   " />
                     <TextBlock Style="{StaticResource MonoText}" Foreground="{StaticResource Ink1Brush}">

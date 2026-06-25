@@ -32,6 +32,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly HashSet<int> _activeSkeletonStationIds = [];
     private readonly HashSet<int> _fatalSkeletonStationIds = [];
     private readonly Dictionary<int, DateTimeOffset> _lastMultipleBodyWarningAt = [];
+    private readonly SemaphoreSlim _liveControlGate = new(1, 1);
     private readonly SemaphoreSlim _liveSenderGate = new(1, 1);
     private readonly HeadRotationStabilizer _headRotationStabilizer = new();
     private readonly IConfigFileDialogService _configFileDialogService;
@@ -748,15 +749,20 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task RestartOrbbecLiveForCalibrationAsync(int stationId)
     {
+        await _liveControlGate.WaitAsync().ConfigureAwait(true);
         try
         {
             AddLog("info", $"Restarting Orbbec live input so station {stationId} calibration reaches the tracker ROI");
-            await StopOrbbecLiveAsync().ConfigureAwait(true);
-            await StartOrbbecLiveAsync().ConfigureAwait(true);
+            await StopOrbbecLiveCoreAsync().ConfigureAwait(true);
+            await StartOrbbecLiveCoreAsync().ConfigureAwait(true);
         }
         catch (Exception exception)
         {
             AddLog("error", $"Orbbec calibration restart failed for station {stationId}: {exception.Message}");
+        }
+        finally
+        {
+            _liveControlGate.Release();
         }
     }
 
@@ -1120,6 +1126,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task StartOrbbecLiveAsync()
     {
+        await _liveControlGate.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            await StartOrbbecLiveCoreAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            _liveControlGate.Release();
+        }
+    }
+
+    private async Task StartOrbbecLiveCoreAsync()
+    {
         if (IsOrbbecLiveRunning)
         {
             return;
@@ -1289,7 +1308,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                     .ToArray();
                 var status = $"Required K4A skeleton sources incomplete: {sourceSkeletonStationIds.Count}/{requiredStationIds.Length}";
                 AddLog("error", $"{status}; missing stations {string.Join(", ", missingStationIds)}");
-                await StopOrbbecLiveAsync().ConfigureAwait(true);
+                await StopOrbbecLiveCoreAsync().ConfigureAwait(true);
                 LiveInputStatus = status;
                 return;
             }
@@ -1516,6 +1535,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 useStartupPreview
                     ? $"Started K4A preview for station {runtime.Station.StationId}; {processingMode} body tracker is initializing ({deviceInfo.Serial}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})"
                     : $"Started K4A body tracking for station {runtime.Station.StationId} ({deviceInfo.Serial}, {processingMode}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
+            if (usingSidecar && bodyTracking.TrackerStartupDelayMilliseconds > 0)
+            {
+                var startupDelay = TimeSpan.FromMilliseconds(bodyTracking.TrackerStartupDelayMilliseconds);
+                AddLog("info", $"Waiting {startupDelay.TotalSeconds:0.###}s before starting the next K4ABT sidecar");
+                await Task.Delay(startupDelay).ConfigureAwait(true);
+            }
+
             return true;
         }
         catch (Exception exception)
@@ -1529,6 +1555,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     private async Task StopOrbbecLiveAsync()
+    {
+        await _liveControlGate.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            await StopOrbbecLiveCoreAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            _liveControlGate.Release();
+        }
+    }
+
+    private async Task StopOrbbecLiveCoreAsync()
     {
         foreach (var stream in _orbbecStreams.ToArray())
         {
@@ -1574,14 +1613,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task RestartOrbbecLiveForPreviewModeAsync()
     {
+        await _liveControlGate.WaitAsync().ConfigureAwait(true);
         try
         {
-            await StopOrbbecLiveAsync().ConfigureAwait(true);
-            await StartOrbbecLiveAsync().ConfigureAwait(true);
+            await StopOrbbecLiveCoreAsync().ConfigureAwait(true);
+            await StartOrbbecLiveCoreAsync().ConfigureAwait(true);
         }
         catch (Exception exception)
         {
             AddLog("error", $"Orbbec preview mode restart failed: {exception.Message}");
+        }
+        finally
+        {
+            _liveControlGate.Release();
         }
     }
 
@@ -1612,6 +1656,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         var frame = args.Frame;
+        var hasSkeleton = frame.Joints.Length > 0;
         var skeletonStatus = !string.IsNullOrWhiteSpace(args.TrackingStatus)
             ? args.TrackingStatus
             : args.BodyCount > 0
@@ -1638,20 +1683,20 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         QueueStationUiUpdate(stationId, new StationFrameUiUpdate
         {
             Serial = serial,
-            CameraStatus = isDepthOnlyTransient ? "streaming preview" : "streaming skeleton",
+            CameraStatus = hasSkeleton ? "streaming skeleton" : "waiting skeleton",
             Resolution = args.DepthWidth > 0 && args.DepthHeight > 0
                 ? $"{args.DepthWidth}x{args.DepthHeight}"
-                : "depth unavailable",
-            EstimatedFps = args.EstimatedFps,
+                : "skeleton only",
+            EstimatedFps = hasSkeleton ? args.EstimatedFps : 0.0,
             FrameTime = DateTimeOffset.FromUnixTimeMilliseconds(frame.TimestampUsec / 1_000),
             SkeletonStatus = skeletonStatus,
-            Preview = args.DepthPreview,
+            Preview = null,
             PreviewMode = args.PreviewMode,
             Frame = isDepthOnlyTransient ? null : frame,
             Evaluation = evaluation,
             FootX = footX,
             FootZ = footZ,
-            FramesDelta = 1
+            FramesDelta = hasSkeleton ? 1 : 0
         });
     }
 
@@ -1702,6 +1747,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         var frameTimeText = update.FrameTime.ToLocalTime().ToString("HH:mm:ss.fff");
+        if (update.FramesDelta > 0)
+        {
+            runtime.Row.FramesReceived += update.FramesDelta;
+        }
+
         if (update.CameraStatus is not null)
         {
             var device = update.Serial is null
@@ -1727,11 +1777,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 update.EstimatedFps,
                 update.FrameTime,
                 update.SkeletonStatus ?? runtime.Row.SkeletonSourceStatus);
-        }
-
-        if (update.Preview is not null)
-        {
-            runtime.Row.UpdateDepthPreview(update.Preview, update.PreviewMode);
         }
 
         if (update.Frame is { } frame && update.Evaluation is { } evaluation)
@@ -1767,10 +1812,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             }
         }
 
-        if (update.EstimatedFps > 0)
-        {
-            SendFps = Math.Max(0, (int)Math.Round(update.EstimatedFps));
-        }
     }
 
     private void ReportMultipleBodyWarning(int stationId, int bodyCount, long selectedBodyId)

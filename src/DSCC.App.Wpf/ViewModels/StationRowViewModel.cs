@@ -39,7 +39,8 @@ public sealed class StationRowViewModel : ObservableObject
     private string _cameraFrameStatus = "not streaming";
     private string _cameraFrameResolution = "-";
     private string _cameraFrameTime = "-";
-    private string _livePreviewStatus = "waiting for depth preview";
+    private long _framesReceived;
+    private string _livePreviewStatus = "waiting for skeleton";
     private ImageSource? _liveDepthPreview;
     private double _livePreviewCanvasWidth = DefaultPreviewWidth;
     private double _livePreviewCanvasHeight = DefaultPreviewHeight;
@@ -223,6 +224,12 @@ public sealed class StationRowViewModel : ObservableObject
     {
         get => _cameraFrameTime;
         private set => SetProperty(ref _cameraFrameTime, value);
+    }
+
+    public long FramesReceived
+    {
+        get => _framesReceived;
+        set => SetProperty(ref _framesReceived, Math.Max(0, value));
     }
 
     public ImageSource? LiveDepthPreview
@@ -670,7 +677,7 @@ public sealed class StationRowViewModel : ObservableObject
     {
         if (preview is null)
         {
-            LivePreviewStatus = $"no {previewMode.ToString().ToLowerInvariant()} preview";
+            LivePreviewStatus = "skeleton only";
             return;
         }
 
@@ -721,6 +728,7 @@ public sealed class StationRowViewModel : ObservableObject
         var now = DateTimeOffset.UtcNow;
         if (jointMap.Count == 0)
         {
+            LivePreviewStatus = "waiting for skeleton";
             if (_overlayCleared)
             {
                 return;
@@ -742,6 +750,7 @@ public sealed class StationRowViewModel : ObservableObject
 
         _lastOverlayUpdateAt = now;
         _overlayCleared = false;
+        LivePreviewStatus = "skeleton only";
 
         LiveJointPoints.Clear();
         LiveBoneSegments.Clear();
@@ -862,7 +871,12 @@ public sealed class StationRowViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(station);
 
         station.FootMarkerCenter = new Vector3Meters(FootMarkerX, FootMarkerY, FootMarkerZ);
-        station.AssignedCameraSerial = AssignedCameraSerial.Trim();
+        var assignedCameraSerial = AssignedCameraSerial.Trim();
+        if (!string.IsNullOrWhiteSpace(assignedCameraSerial) || string.IsNullOrWhiteSpace(station.AssignedCameraSerial))
+        {
+            station.AssignedCameraSerial = assignedCameraSerial;
+        }
+
         station.DeviceType = string.IsNullOrWhiteSpace(DeviceType) ? DeviceProfile.DefaultDeviceType : DeviceType.Trim();
         station.TrackingRoi.MinX = Math.Min(RoiMinX, RoiMaxX);
         station.TrackingRoi.MaxX = Math.Max(RoiMinX, RoiMaxX);

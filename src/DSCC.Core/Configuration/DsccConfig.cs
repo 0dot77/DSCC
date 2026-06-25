@@ -57,6 +57,12 @@ public sealed class BodyTrackingConfig
     public int GpuDeviceId { get; set; }
 
     /// <summary>
+    /// Delay after starting one tracker sidecar before starting the next station.
+    /// Some multi-Femto Mega rigs reject simultaneous USB control transfers.
+    /// </summary>
+    public double TrackerStartupDelayMilliseconds { get; set; }
+
+    /// <summary>
     /// Minimum interval between depth/IR preview images. 0 generates a preview
     /// for every frame.
     /// </summary>
