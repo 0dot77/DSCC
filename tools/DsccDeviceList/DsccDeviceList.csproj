@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DSCC.Orbbec\DSCC.Orbbec.csproj" />
+    <ProjectReference Include="..\..\src\DSCC.Orbbec\DSCC.Orbbec.csproj" SkipGetTargetFrameworkProperties="true" SetTargetFramework="TargetFramework=net10.0" />
   </ItemGroup>
 
 </Project>

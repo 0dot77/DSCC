@@ -55,7 +55,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private double _headRotationDeadZoneDegrees = 0.75;
     private bool _isReplayRunning;
     private bool _isOrbbecLiveRunning;
-    private bool _isStoppingRequiredSkeletonLiveAfterError;
     private bool _isLoadingConfig;
     private bool _hasUnsavedChanges;
     private int _liveStartGeneration;
@@ -1152,7 +1151,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         _activeSkeletonStationIds.Clear();
         _fatalSkeletonStationIds.Clear();
         _lastMultipleBodyWarningAt.Clear();
-        _isStoppingRequiredSkeletonLiveAfterError = false;
         var liveStartGeneration = ++_liveStartGeneration;
 
         await RefreshOrbbecDevicesAsync().ConfigureAwait(true);
@@ -1244,9 +1242,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
             if (PreviewMode != OrbbecPreviewMode.Color)
             {
-                AddLog(
-                    "error",
-                    $"K4A body tracking is required for station {runtime.Station.StationId}; depth fallback stream is disabled");
+                var status = $"K4A body tracking unavailable for station {runtime.Station.StationId}; depth fallback stream is disabled";
+                MarkSkeletonStationUnavailable(runtime.Station.StationId, serial, status);
+                AddLog("error", status);
+                AddLog("warn", $"Continuing Orbbec live startup without station {runtime.Station.StationId}");
                 continue;
             }
 
@@ -1306,26 +1305,27 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 var missingStationIds = requiredStationIds
                     .Where(stationId => !sourceSkeletonStationIds.Contains(stationId))
                     .ToArray();
-                var status = $"Required K4A skeleton sources incomplete: {sourceSkeletonStationIds.Count}/{requiredStationIds.Length}";
-                AddLog("error", $"{status}; missing stations {string.Join(", ", missingStationIds)}");
-                await StopOrbbecLiveCoreAsync().ConfigureAwait(true);
-                LiveInputStatus = status;
-                return;
+                var status = $"K4A skeleton sources partial: {sourceSkeletonStationIds.Count}/{requiredStationIds.Length}";
+                AddLog(
+                    sourceSkeletonStationIds.Count > 0 ? "warn" : "error",
+                    $"{status}; unavailable stations {string.Join(", ", missingStationIds)}; continuing with available stations");
+                LiveInputStatus = CreateRequiredSkeletonLiveStatus(requiredStationIds);
             }
 
-            var activeCount = CountActiveRequiredSkeletonStations(requiredStationIds);
-            if (activeCount != requiredStationIds.Length)
+            if (HasPendingRequiredSkeletonActivation(requiredStationIds))
             {
-                LiveInputStatus = $"K4A skeleton read loops initializing: {activeCount}/{requiredStationIds.Length}";
+                LiveInputStatus = CreateRequiredSkeletonLiveStatus(requiredStationIds);
                 _ = WatchRequiredSkeletonActivationAsync(liveStartGeneration, requiredStationIds);
                 return;
             }
         }
 
         LiveInputStatus = IsOrbbecLiveRunning
-            ? skeletonStreamCount > 0
-                ? $"Orbbec K4A skeleton streams: {skeletonStreamCount}; depth fallback streams: {depthStreamCount}"
-                : $"Orbbec live depth streams: {depthStreamCount}; skeleton provider missing"
+            ? PreviewMode != OrbbecPreviewMode.Color && processingModes.Count > 0 && skeletonStreamCount != GetRequiredSkeletonStationIds().Length
+                ? CreateRequiredSkeletonLiveStatus(GetRequiredSkeletonStationIds())
+                : skeletonStreamCount > 0
+                    ? $"Orbbec K4A skeleton streams: {skeletonStreamCount}; depth fallback streams: {depthStreamCount}"
+                    : $"Orbbec live depth streams: {depthStreamCount}; skeleton provider missing"
             : "No mapped Orbbec stream started";
 
         if (!IsOrbbecLiveRunning)
@@ -1393,6 +1393,46 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             !_fatalSkeletonStationIds.Contains(stationId));
     }
 
+    private HashSet<int> GetStartedSkeletonStationIds()
+    {
+        return _orbbecStreams
+            .Where(stream => stream.SkeletonSource is not null)
+            .Select(stream => stream.StationId)
+            .ToHashSet();
+    }
+
+    private bool HasPendingRequiredSkeletonActivation(IReadOnlyCollection<int> requiredStationIds)
+    {
+        var startedStationIds = GetStartedSkeletonStationIds();
+        return requiredStationIds.Any(stationId =>
+            startedStationIds.Contains(stationId) &&
+            !_activeSkeletonStationIds.Contains(stationId) &&
+            !_fatalSkeletonStationIds.Contains(stationId));
+    }
+
+    private string CreateRequiredSkeletonLiveStatus(IReadOnlyCollection<int> requiredStationIds)
+    {
+        var activeCount = CountActiveRequiredSkeletonStations(requiredStationIds);
+        if (requiredStationIds.Count == 0)
+        {
+            return "No required K4A skeleton stations configured";
+        }
+
+        var startedStationIds = GetStartedSkeletonStationIds();
+        var unavailableStationIds = requiredStationIds
+            .Where(stationId => _fatalSkeletonStationIds.Contains(stationId) || !startedStationIds.Contains(stationId))
+            .OrderBy(stationId => stationId)
+            .ToArray();
+        if (activeCount == requiredStationIds.Count)
+        {
+            return $"K4A skeleton read loops active: {activeCount}/{requiredStationIds.Count}";
+        }
+
+        return unavailableStationIds.Length > 0
+            ? $"K4A skeleton live partial: active {activeCount}/{requiredStationIds.Count}; unavailable stations {string.Join(", ", unavailableStationIds)}"
+            : $"K4A skeleton read loops initializing: {activeCount}/{requiredStationIds.Count}";
+    }
+
     private void UpdateRequiredSkeletonActivationStatus()
     {
         var requiredStationIds = GetRequiredSkeletonStationIds();
@@ -1401,10 +1441,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var activeCount = CountActiveRequiredSkeletonStations(requiredStationIds);
-        LiveInputStatus = activeCount == requiredStationIds.Length
-            ? $"K4A skeleton read loops active: {activeCount}/{requiredStationIds.Length}"
-            : $"K4A skeleton read loops initializing: {activeCount}/{requiredStationIds.Length}";
+        LiveInputStatus = CreateRequiredSkeletonLiveStatus(requiredStationIds);
     }
 
     private async Task WatchRequiredSkeletonActivationAsync(int liveStartGeneration, IReadOnlyList<int> requiredStationIds)
@@ -1417,10 +1454,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            var activeCount = CountActiveRequiredSkeletonStations(requiredStationIds);
-            if (activeCount == requiredStationIds.Count)
+            if (!HasPendingRequiredSkeletonActivation(requiredStationIds))
             {
-                LiveInputStatus = $"K4A skeleton read loops active: {activeCount}/{requiredStationIds.Count}";
+                LiveInputStatus = CreateRequiredSkeletonLiveStatus(requiredStationIds);
                 return;
             }
 
@@ -1439,9 +1475,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 _fatalSkeletonStationIds.Contains(stationId))
             .ToArray();
         var status = $"K4A skeleton read loops did not become active: {finalActiveCount}/{requiredStationIds.Count}";
-        AddLog("error", $"{status}; missing stations {string.Join(", ", missingStationIds)}");
-        await StopOrbbecLiveAsync().ConfigureAwait(true);
-        LiveInputStatus = status;
+        AddLog(
+            finalActiveCount > 0 ? "warn" : "error",
+            $"{status}; unavailable stations {string.Join(", ", missingStationIds)}; continuing with available stations");
+        LiveInputStatus = CreateRequiredSkeletonLiveStatus(requiredStationIds);
     }
 
     private static bool RequiresCudaRuntime(string processingMode)
@@ -1513,11 +1550,14 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             _orbbecStreams.Add(new OrbbecStreamRuntime(runtime.Station.StationId, null, source));
             var device = Devices.FirstOrDefault(candidate => string.Equals(candidate.Serial, deviceInfo.Serial, StringComparison.OrdinalIgnoreCase));
             var useStartupPreview = !usingSidecar && RequiresCudaRuntime(processingMode);
+            var waitingForSkeletonPackets = usingSidecar || useStartupPreview;
             var sourceTag = usingSidecar ? "sidecar" : "in-process";
             var startingStatus = useStartupPreview
                 ? $"Preview active; {processingMode} body tracker initializing ({sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})"
-                : $"K4A body tracking active ({processingMode}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})";
-            var cameraStatus = useStartupPreview ? "starting skeleton" : "streaming skeleton";
+                : usingSidecar
+                    ? $"K4ABT sidecar started; waiting for skeleton packets ({processingMode}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})"
+                    : $"K4A body tracking active ({processingMode}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})";
+            var cameraStatus = waitingForSkeletonPackets ? "starting skeleton" : "streaming skeleton";
             if (device is not null)
             {
                 device.Status = cameraStatus;
@@ -1534,7 +1574,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 "info",
                 useStartupPreview
                     ? $"Started K4A preview for station {runtime.Station.StationId}; {processingMode} body tracker is initializing ({deviceInfo.Serial}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})"
-                    : $"Started K4A body tracking for station {runtime.Station.StationId} ({deviceInfo.Serial}, {processingMode}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
+                    : usingSidecar
+                        ? $"Started K4ABT sidecar for station {runtime.Station.StationId}; waiting for skeleton packets ({deviceInfo.Serial}, {processingMode}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})"
+                        : $"Started K4A body tracking for station {runtime.Station.StationId} ({deviceInfo.Serial}, {processingMode}, {sourceTag}, {modelTag}, {effectiveFps}fps, {runtime.Station.Device.DepthMode})");
             if (usingSidecar && bodyTracking.TrackerStartupDelayMilliseconds > 0)
             {
                 var startupDelay = TimeSpan.FromMilliseconds(bodyTracking.TrackerStartupDelayMilliseconds);
@@ -1865,38 +1907,94 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         if (!isTransient)
         {
-            _activeSkeletonStationIds.Remove(stationId);
-            _fatalSkeletonStationIds.Add(stationId);
-            LiveInputStatus = $"Orbbec skeleton error on station {stationId}";
-            if (IsRequiredSkeletonLiveMode() && IsOrbbecLiveRunning)
+            var wasAlreadyFatal = _fatalSkeletonStationIds.Contains(stationId);
+            MarkSkeletonStationUnavailable(stationId, serial, message);
+            if (!wasAlreadyFatal)
             {
-                _ = StopRequiredSkeletonLiveAfterFatalErrorAsync(stationId, message);
+                var sourceToDispose = RemoveSkeletonStreamRuntime(stationId);
+                if (sourceToDispose is not null)
+                {
+                    DisposeSkeletonSourceInBackground(stationId, sourceToDispose);
+                }
+
+                if (IsRequiredSkeletonLiveMode() && IsOrbbecLiveRunning)
+                {
+                    ReportRequiredSkeletonStreamFailureAndContinue(stationId, message);
+                }
             }
         }
 
         AddLog(isTransient ? "warn" : "error", $"K4A body tracking {(isTransient ? "status" : "error")} on station {stationId}: {message}");
     }
 
-    private async Task StopRequiredSkeletonLiveAfterFatalErrorAsync(int stationId, string message)
+    private void MarkSkeletonStationUnavailable(int stationId, string serial, string message)
     {
-        if (_isStoppingRequiredSkeletonLiveAfterError)
+        _activeSkeletonStationIds.Remove(stationId);
+        _fatalSkeletonStationIds.Add(stationId);
+
+        var device = Devices.FirstOrDefault(candidate => string.Equals(candidate.Serial, serial, StringComparison.OrdinalIgnoreCase));
+        if (device is not null)
         {
+            device.Status = "skeleton unavailable";
+            device.SkeletonStatus = message;
+        }
+
+        if (_stationRuntimes.TryGetValue(stationId, out var runtime))
+        {
+            runtime.Row.UpdateCameraFrame(
+                "skeleton unavailable",
+                runtime.Row.CameraFrameResolution,
+                runtime.Row.CameraFps,
+                DateTimeOffset.Now,
+                message);
+        }
+    }
+
+    private IOrbbecSkeletonFrameSource? RemoveSkeletonStreamRuntime(int stationId)
+    {
+        var index = _orbbecStreams.FindIndex(stream => stream.StationId == stationId && stream.SkeletonSource is not null);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var source = _orbbecStreams[index].SkeletonSource;
+        _orbbecStreams.RemoveAt(index);
+        return source;
+    }
+
+    private void DisposeSkeletonSourceInBackground(int stationId, IOrbbecSkeletonFrameSource source)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await source.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                AddLog("error", $"K4A body tracking cleanup failed for station {stationId}: {exception.Message}");
+            }
+        });
+    }
+
+    private void ReportRequiredSkeletonStreamFailureAndContinue(int stationId, string message)
+    {
+        var remainingSkeletonStreams = _orbbecStreams.Count(stream => stream.SkeletonSource is not null);
+        if (remainingSkeletonStreams > 0)
+        {
+            UpdateRequiredSkeletonActivationStatus();
+            AddLog(
+                "warn",
+                $"Station {stationId} K4A skeleton stream failed; continuing live input with {remainingSkeletonStreams} remaining skeleton stream(s): {message}");
             return;
         }
 
-        _isStoppingRequiredSkeletonLiveAfterError = true;
-        var status = $"Required K4A skeleton stream failed on station {stationId}";
-        AddLog("error", $"{status}; stopping live input: {message}");
-
-        try
-        {
-            await StopOrbbecLiveAsync().ConfigureAwait(true);
-            LiveInputStatus = status;
-        }
-        finally
-        {
-            _isStoppingRequiredSkeletonLiveAfterError = false;
-        }
+        _liveSkeletonSender?.Dispose();
+        _liveSkeletonSender = null;
+        IsOrbbecLiveRunning = _orbbecStreams.Count > 0;
+        LiveInputStatus = $"No K4A skeleton streams running; last failure station {stationId}";
+        AddLog("error", $"No K4A skeleton streams remain after station {stationId} failed: {message}");
     }
 
     private void OnOrbbecSkeletonSourceStatus(int stationId, string serial, string message)

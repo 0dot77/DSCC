@@ -46,12 +46,12 @@
           "z": 1.39
         },
         "trackingRoi": {
-          "minX": -0.74,
-          "maxX": 0.96,
+          "minX": -0.59,
+          "maxX": 0.8099999999999999,
           "minY": -1.2,
           "maxY": 1.2,
-          "minZ": 0.49,
-          "maxZ": 3.19
+          "minZ": 0.3899999999999999,
+          "maxZ": 4.39
         },
         "unityAnchor": {
           "x": -3,
@@ -91,8 +91,8 @@
         "trackingRoi": {
           "minX": -0.7,
           "maxX": 0.7,
-          "minY": 0,
-          "maxY": 2.4,
+          "minY": -1.2,
+          "maxY": 1.2,
           "minZ": 1,
           "maxZ": 5
         },
@@ -134,8 +134,8 @@
         "trackingRoi": {
           "minX": -0.7,
           "maxX": 0.7,
-          "minY": 0,
-          "maxY": 2.4,
+          "minY": -1.2,
+          "maxY": 1.2,
           "minZ": 1,
           "maxZ": 5
         },
@@ -177,8 +177,8 @@
         "trackingRoi": {
           "minX": -0.7,
           "maxX": 0.7,
-          "minY": 0,
-          "maxY": 2.4,
+          "minY": -1.2,
+          "maxY": 1.2,
           "minZ": 1,
           "maxZ": 5
         },

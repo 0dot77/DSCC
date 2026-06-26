@@ -1,0 +1,5 @@
+<Project>
+  <ItemGroup>
+    <ProjectReference Update="@(ProjectReference)" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+</Project>

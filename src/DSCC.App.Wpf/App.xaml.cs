@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -11,13 +12,37 @@ namespace DSCC.App.Wpf;
 /// </summary>
 public partial class App : Application
 {
+    private Mutex? singleInstanceMutex;
+    private bool ownsSingleInstanceMutex;
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        singleInstanceMutex = new Mutex(initiallyOwned: true, "Local\\DSCC.App.Wpf.SingleInstance", out var createdNew);
+        ownsSingleInstanceMutex = createdNew;
+        if (!createdNew)
+        {
+            Shutdown(0);
+            return;
+        }
+
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
         base.OnStartup(e);
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        if (ownsSingleInstanceMutex)
+        {
+            singleInstanceMutex?.ReleaseMutex();
+        }
+
+        singleInstanceMutex?.Dispose();
+        singleInstanceMutex = null;
+        ownsSingleInstanceMutex = false;
+        base.OnExit(e);
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

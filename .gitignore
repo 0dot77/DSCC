@@ -4,6 +4,12 @@ obj/
 .vscode/
 .agents/
 .claude/
+.appdata/
+.dotnet/
+.dotnet-cli-home/
+.nuget/
+codex-tmp/
+downloads/
 *.user
 *.suo
 TestResults/
